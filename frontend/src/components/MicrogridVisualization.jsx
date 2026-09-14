@@ -274,7 +274,6 @@ export default function MicrogridVisualization({ buildings = [], gridCore = {}, 
   function buildingEdge(pos) {
     const dx = CX - pos.bx;
     const dy = CY - pos.by;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const hw = NODE_W / 2;
     const hh = NODE_H / 2;
     const t = Math.min(Math.abs(hw / dx), Math.abs(hh / dy));

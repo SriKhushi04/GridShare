@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGrid } from '../context/GridContext';
-import { SCENARIOS } from '../simulation/scenarios';
+import { SCENARIOS } from '../constants/scenarios';
 import { Play, Pause, RotateCcw, Sliders, Zap, Loader2, Brain } from 'lucide-react';
 
 const SCENARIO_LABELS = [

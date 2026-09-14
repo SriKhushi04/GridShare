@@ -198,6 +198,40 @@ async function runPhase5Tests() {
     const resetState = (await request('/simulation/reset', { method: 'POST' })).data.gridState;
     assert(resetState.mainGrid.cumulativeImportKwh === 0 && resetState.mainGrid.currentImportKw === 0, 'RESET invariant: cumulativeImportKwh and currentImportKw reset to 0');
 
+    // -------------------------------------------------------------
+    // PHASE 1B: TELEMETRY & CONFIDENCE HONESTY TESTS
+    // -------------------------------------------------------------
+    console.log('\n--- Running Phase 1B Telemetry & Confidence Honesty Tests ---');
+
+    const agentRunRes = await request('/agent/run', {
+      method: 'POST',
+      body: JSON.stringify({ objective: 'Verify honest telemetry' }),
+    });
+    assert(agentRunRes.status === 200, 'POST /agent/run for Phase 1B telemetry check');
+    const decision = agentRunRes.data.decision;
+
+    // HIGH-003: Deterministic fallback reports sourceMode accurately, toolsUsed is empty, confidence is null
+    if (agentRunRes.data.mode === 'DETERMINISTIC_SAFETY_FALLBACK') {
+      assert(
+        decision.sourceMode === 'DETERMINISTIC_SAFETY_FALLBACK',
+        'Deterministic mode reports sourceMode DETERMINISTIC_SAFETY_FALLBACK'
+      );
+      assert(
+        Array.isArray(decision.toolsUsed) && decision.toolsUsed.length === 0,
+        'Deterministic mode does NOT fabricate toolsUsed (empty array)'
+      );
+      assert(
+        decision.confidence === null,
+        'Deterministic mode does NOT fabricate confidence score (strictly null)'
+      );
+    } else {
+      // HIGH-005: Gemini agent does not hardcode uncalibrated confidence
+      assert(
+        decision.confidence === null,
+        'Gemini agent mode does NOT report uncalibrated hardcoded confidence (null)'
+      );
+    }
+
     // Reset to Baseline
     await request('/simulation/reset', { method: 'POST' });
 
@@ -207,7 +241,7 @@ async function runPhase5Tests() {
   }
 
   console.log('\n==================================================');
-  console.log(`  PHASE 5 AGENT & STAGE 1A RESULTS: ${passed} PASSED, ${failed} FAILED`);
+  console.log(`  AGENT & STAGE 1A/1B RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('==================================================\n');
 
   if (failed > 0) {

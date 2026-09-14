@@ -177,7 +177,7 @@ export function GridProvider({ children }) {
       } catch (err) {
         console.error('[GridContext] Auto Mode Agent error:', err);
       }
-    }, agentStatus?.autoIntervalMs || 10000);
+    }, agentStatus?.autoIntervalMs ?? 10000);
 
     return () => clearInterval(autoTimer);
   }, [autoMode, isPaused, error, agentStatus?.autoIntervalMs]);

@@ -252,15 +252,20 @@ export default function BuildingDetails() {
           <div className="space-y-4">
             {/* AI Prediction */}
             <div className="glass-panel rounded-lg p-4 border border-blue-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <Brain size={12} className="text-blue-400" />
-                <span className="text-[10px] text-slate-300 uppercase tracking-widest text-mono font-medium">
-                  AI Prediction
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <Brain size={12} className="text-blue-400" />
+                  <span className="text-[10px] text-slate-300 uppercase tracking-widest text-mono font-medium">
+                    Energy Forecast
+                  </span>
+                </div>
+                <span className="text-[8px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded text-mono">
+                  PLACEHOLDER
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">{aiPrediction}</p>
-              <div className="mt-3 pt-3 border-t border-white/5">
-                <span className="text-[9px] text-slate-600 text-mono">Grid Share AI · Forecast</span>
+              <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[9px] text-slate-500 text-mono">Baseline Advisory · ML Pipeline Planned</span>
               </div>
             </div>
 

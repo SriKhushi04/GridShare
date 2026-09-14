@@ -134,7 +134,8 @@ async function runAgentLoop(customObjective) {
       decision: finalDecisionText || 'Grid Share AI optimized energy distribution across nodes.',
       reason: 'AI Agent evaluated microgrid state using tools and issued backend-validated transfers.',
       priority: 'HIGH',
-      confidence: 0.98,
+      // Calibrated confidence score not provided by LLM output; represented honestly as null
+      confidence: null,
       objective,
       sourceMode: 'GEMINI_AGENT',
       toolsUsed: [...new Set(executedTools)],

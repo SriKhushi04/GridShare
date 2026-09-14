@@ -18,24 +18,6 @@ export function getStatusBg(status) {
   }
 }
 
-export function getStatusGlow(status) {
-  switch (status) {
-    case 'SURPLUS': return '0 0 20px rgba(16, 185, 129, 0.2)';
-    case 'DEFICIT': return '0 0 20px rgba(239, 68, 68, 0.2)';
-    case 'BALANCED': return '0 0 20px rgba(96, 165, 250, 0.2)';
-    default: return 'none';
-  }
-}
-
-export function getStatusBorderColor(status) {
-  switch (status) {
-    case 'SURPLUS': return 'rgba(16, 185, 129, 0.4)';
-    case 'DEFICIT': return 'rgba(239, 68, 68, 0.4)';
-    case 'BALANCED': return 'rgba(96, 165, 250, 0.4)';
-    default: return 'rgba(100, 116, 139, 0.4)';
-  }
-}
-
 export function getActivityTypeColor(type) {
   switch (type) {
     case 'success': return 'text-emerald-400';
@@ -62,5 +44,22 @@ export function getTransactionTypeColor(type) {
 export function formatBalance(balance) {
   if (balance > 0) return `+${balance.toFixed(1)}`;
   return balance.toFixed(1);
+}
+
+export function getTransactionStatusStyle(status) {
+  switch (status) {
+    case 'COMPLETED':
+    case 'EXECUTED':
+      return { color: 'text-emerald-400', icon: 'check' };
+    case 'FAILED':
+    case 'REJECTED':
+      return { color: 'text-red-400', icon: 'alert' };
+    case 'ACTIVE':
+    case 'PENDING':
+    case 'RESERVED':
+      return { color: 'text-blue-400', icon: 'clock' };
+    default:
+      return { color: 'text-slate-400', icon: 'check' };
+  }
 }
 

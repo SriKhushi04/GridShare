@@ -202,7 +202,7 @@ export default function Dashboard() {
           {/* AI Activity */}
           <div className="w-72 shrink-0 min-h-0 flex flex-col gap-3">
             <div className="flex-1 glass-panel rounded-xl overflow-hidden min-h-0">
-              <AIActivityPanel events={logs || []} aiDecisions={state.aiDecisions || []} agentStatus={state.agentStatus || {}} />
+              <AIActivityPanel events={logs || []} agentStatus={state.agentStatus || {}} />
             </div>
           </div>
         </div>

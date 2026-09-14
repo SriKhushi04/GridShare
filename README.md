@@ -1,125 +1,58 @@
-# ⚡ GridShare
+﻿# ⚡ GridShare
 
-**GridShare** is a decentralized peer-to-peer energy sharing platform that enables users to share surplus renewable energy with nearby consumers through a transparent and secure digital marketplace.
+**GridShare** is an AI-enabled smart microgrid management and peer-to-peer (P2P) energy-sharing prototype designed for a local cluster of 5 buildings.
 
-The platform aims to make renewable energy more accessible by allowing energy producers and consumers to interact directly, reducing dependence on centralized energy distribution.
-
-## 🌱 Overview
-
-GridShare connects **energy producers** who have surplus electricity with **energy consumers** who need additional power.
-
-Instead of wasting excess renewable energy, producers can make it available to other users through the platform.
-
-The system provides:
-
-* ⚡ Peer-to-peer energy sharing
-* 🔋 Surplus energy management
-* 📊 Energy availability tracking
-* 🔐 Secure user authentication
-* ⛓️ Transparent transaction records
-* 📍 Location-based energy discovery
-* 💰 Energy trading and settlement
+The platform coordinates renewable energy distribution across distributed prosumer nodes, maximizing local solar self-consumption and battery reserve utilization while minimizing dependence on the main power grid.
 
 ---
 
-## 🏗️ How It Works
+## 🏛️ System Architecture & Energy Priority
+
+The core allocation engine enforces a strict deterministic hierarchy:
 
 ```text
-        ENERGY PRODUCER
-              │
-              │ Surplus Energy
-              ▼
-       ┌───────────────┐
-       │   GridShare   │
-       │    Platform   │
-       └───────┬───────┘
-               │
-       Match nearby users
-               │
-               ▼
-        ENERGY CONSUMER
-               │
-               ▼
-       Energy Transaction
-               │
-               ▼
-        Transaction Ledger
+┌─────────────────────────────────────────────────────────┐
+│               DEFICIT OCCURS AT NODE                    │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+                            ▼
+      [Priority 1: P2P Building-to-Building Sharing]
+      Surplus solar nodes supply deficit nodes directly
+                            │
+              (If deficit persists)
+                            ▼
+      [Priority 2: Central Battery Storage (100 kWh)]
+      Discharges shared battery reserve to bridge local shortfall
+                            │
+              (If battery depleted)
+                            ▼
+      [Priority 3: Main Power Grid Fallback]
+      Imports external grid power (only if Main Grid is ONLINE)
+      If Main Grid is OFFLINE: Emergency load-shedding / unfulfilled demand
+                            │
+              (If excess surplus remains)
+                            ▼
+      [Central Battery Recharging]
+      Remaining surplus charges shared battery up to 100% capacity
 ```
-
-### Basic Flow
-
-1. A producer generates renewable energy.
-2. Any surplus energy is listed on GridShare.
-3. Nearby consumers can discover available energy.
-4. A consumer requests or purchases the required energy.
-5. The transaction is processed through the platform.
-6. The transaction is recorded securely.
-
----
-
-## ✨ Features
-
-### 👤 User Management
-
-* User registration and login
-* Producer and consumer profiles
-* Role-based access
-
-### ⚡ Energy Marketplace
-
-* List surplus energy
-* View available energy
-* Search for nearby energy sources
-* Match producers with consumers
-* Track energy transactions
-
-### 📊 Dashboard
-
-Users can monitor:
-
-* Energy generated
-* Energy consumed
-* Energy shared
-* Energy purchased
-* Transaction history
-
-### 🔐 Secure Transactions
-
-GridShare maintains a transparent record of energy-sharing transactions to improve trust between participants.
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-
-* React.js
-* JavaScript
-* Tailwind CSS
-* Vite
+- **Framework**: React 19 (React Router v7)
+- **Tooling**: Vite 8
+- **Styling**: Tailwind CSS v4
+- **Icons**: Lucide React
+- **Quality**: Oxlint
 
 ### Backend
-
-* Node.js
-* Express.js
-
-### Database
-
-* MongoDB
-* Mongoose
-
-### Blockchain
-
-* Solidity
-* Ethereum
-* Smart Contracts
-* MetaMask
-
-### Tools
-
-* Git & GitHub
-* VS Code
-* Postman
+- **Runtime**: Node.js (v20+)
+- **Framework**: Express 5
+- **Agent Intelligence**: Google Gemini API (`@google/genai`) with bounded multi-turn tool calling
+- **Fallback Policy**: Built-in deterministic rule engine (`DETERMINISTIC_SAFETY_FALLBACK`)
+- **State Model**: In-memory authoritative microgrid state (`GridState` singleton)
 
 ---
 
@@ -128,93 +61,101 @@ GridShare maintains a transparent record of energy-sharing transactions to impro
 ```text
 GridShare/
 │
-├── frontend/
+├── frontend/                     # React / Vite web client
 │   ├── src/
-│   ├── public/
+│   │   ├── api/                  # API client (gridApi.js)
+│   │   ├── components/           # UI components (MicrogridVisualization, StatCard, etc.)
+│   │   ├── constants/            # Client constants (scenarios.js)
+│   │   ├── context/              # Global state (GridContext.jsx)
+│   │   ├── pages/                # Routes (Dashboard, Buildings, AIDecisions, Transactions)
+│   │   └── utils/                # Styling and formatting helpers (statusHelpers.js)
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+│
+├── backend/                      # Express REST API & Simulation Engine
+│   ├── agent/                    # Autonomous agent loop, tool executors, prompts & schemas
+│   │   ├── agentLoop.js          # Gemini function-calling loop
+│   │   ├── agentPolicy.js        # Deterministic safety fallback policy
+│   │   ├── agentTools.js         # Validated execution tools
+│   │   └── agentService.js       # Agent orchestration
+│   ├── config/                   # Baseline building and battery profiles
+│   ├── controllers/              # HTTP request handlers (gridController, agentController)
+│   ├── routes/                   # API route definitions (/api/*)
+│   ├── services/                 # Business logic
+│   │   ├── allocationService.js  # Authoritative P2P → Battery → Grid allocation
+│   │   ├── gridService.js        # In-memory microgrid state & reservation ledger
+│   │   └── simulationService.js  # Ticking noise & scenario management
+│   ├── utils/                    # Grid metrics, unit conversion & calculation helpers
+│   ├── server.js                 # HTTP server entry point
+│   ├── smokeTest.js              # 18-assertion backend API test suite
+│   ├── agentTest.js              # 31-assertion agent & accounting test suite
 │   └── package.json
 │
-├── backend/
-│   ├── controllers/
-│   ├── models/
-│   ├── routes/
-│   ├── middleware/
-│   └── server.js
-│
-├── blockchain/
-│   ├── contracts/
-│   └── deployment/
-│
-├── README.md
-└── .gitignore
+├── README.md                     # Repository documentation
+└── .gitignore                    # Environment & local artifact rules
 ```
 
 ---
 
-## 🔄 Energy Sharing Workflow
+## 📊 Core Concepts & Accounting Model
 
-```text
-Producer generates renewable energy
-                ↓
-       Surplus detected
-                ↓
-     Producer lists energy
-                ↓
-       GridShare marketplace
-                ↓
-    Consumer finds available energy
-                ↓
-       Energy transaction
-                ↓
-      Transaction recorded
-                ↓
-       Dashboard updated
+### Instantaneous Power vs. Cumulative Energy
+- **`currentImportKw`**: Instantaneous rate of grid import (kW snapshot for current tick). Correctly drives real-time badges and grid dependency ratio.
+- **`cumulativeImportKwh`**: Integrated energy imported over simulation time:
+  $$\Delta E_{\text{imported}} = \text{currentImportKw} \times \frac{\text{tickDurationSeconds}}{3600}$$
+- **`tickDurationSeconds`**: Simulation step duration (default: 5 seconds).
+
+### Centralized Reservation Model
+- Physical building telemetry (`solarGeneration`, `consumption`, `batteryLevel`) remains immutable sensor data.
+- P2P transfers are booked through an authoritative reservation ledger per tick:
+  $$\text{AvailableSurplus}_i(t) = \max(0, G_i - C_i) - \text{ActiveReservedOutgoing}_i(t)$$
+- Prevents double-spending of donor surplus across repeated agent iterations.
+- Reservations settle into completed transaction records upon allocation completion.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+- Node.js v20+ and npm installed
+
+### 2. Backend Setup
+```bash
+cd backend
+npm install
+copy .env.example .env     # (Optional) Add GEMINI_API_KEY for live agent mode
+node server.js             # Starts on http://localhost:5000
+```
+*Note: If no `GEMINI_API_KEY` is provided, the backend operates seamlessly using its deterministic safety fallback.*
+
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
+copy .env.example .env     # VITE_API_URL=http://localhost:5000/api
+npm run dev                # Starts on http://localhost:5173
+```
+
+### 4. Running Verification Tests
+```bash
+cd backend
+npm test                   # Runs smoke tests & agent accounting tests (49/49 passed)
+
+cd ../frontend
+npx vite build             # Verifies clean production bundle
+npx oxlint                 # Runs frontend linter
 ```
 
 ---
 
-## 🎯 Problem We Are Solving
+## 🔮 Scope Boundaries & Future Work
 
-Renewable energy generation can fluctuate significantly, and surplus energy may not always be efficiently utilized.
-
-GridShare provides a platform where surplus energy can be made available to other consumers, encouraging:
-
-* Better utilization of renewable energy
-* Local energy sharing
-* Reduced energy wastage
-* Greater participation in distributed energy systems
-* Transparent peer-to-peer transactions
-
----
-
-## 🔮 Future Scope
-
-GridShare can be extended with:
-
-* 🤖 AI-based energy demand prediction
-* 📍 Real-time geospatial energy matching
-* 🏠 IoT and smart-meter integration
-* 📈 Dynamic energy pricing
-* 🔋 Battery optimization
-* 🌐 Large-scale microgrid integration
-* 🌱 Carbon-footprint tracking
-* 📊 Advanced energy analytics
-
----
-
-## 🚧 Project Status
-
-**Under Development 🚀**
-
-GridShare is currently being developed as a prototype for demonstrating peer-to-peer renewable energy sharing and intelligent energy management.
-
----
-
-## 👥 Contributors
-
-Built as a collaborative project focused on combining **web development, renewable energy systems, AI, and blockchain technology**.
+- **Energy Forecasting**: Currently, building forecasting fields display static advisory baselines. Upgrading to a 1-hour-ahead predictive model is scheduled for Phase 2.
+- **Blockchain Integration**: Blockchain smart contracts and tokenized energy settlements are strictly out of scope for the current workstream. The system maintains clean transaction records (`transferIntentId`, `energyKwh`) designed for downstream on-chain ingestion.
+- **Authentication**: Endpoints are currently open for local microgrid simulation and prototyping.
 
 ---
 
 ## 📜 License
-
-This project is developed for educational and demonstration purposes.
+Educational and research prototype.

@@ -1,7 +1,7 @@
 import { getActivityTypeColor } from '../utils/statusHelpers';
 import { Brain } from 'lucide-react';
 
-export default function AIActivityPanel({ events, aiDecisions = [], agentStatus = {} }) {
+export default function AIActivityPanel({ events, agentStatus = {} }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -27,7 +27,7 @@ export default function AIActivityPanel({ events, aiDecisions = [], agentStatus 
 
       {/* Feed */}
       <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
-        {events.map((event, idx) => (
+        {events.map((event) => (
           <div
             key={event.id}
             className="px-4 py-2 hover:bg-white/2 transition-colors flex gap-3 items-start border-b border-white/3"
