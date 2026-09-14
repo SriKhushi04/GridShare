@@ -15,7 +15,7 @@ class AgentService {
     return {
       enabled: true,
       mode: hasKey ? 'GEMINI_AGENT' : 'DETERMINISTIC_SAFETY_FALLBACK',
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: (process.env.GEMINI_MODEL === 'gemini-2.5-flash' ? 'gemini-3.7-flash' : process.env.GEMINI_MODEL) || 'gemini-3.7-flash',
       apiKeyConfigured: hasKey,
       maxIterations: parseInt(process.env.MAX_AGENT_ITERATIONS || '5', 10),
       maxActions: parseInt(process.env.MAX_AGENT_ACTIONS || '3', 10),

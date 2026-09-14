@@ -1,59 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import TopBar from '../components/TopBar';
 import { useGrid } from '../context/GridContext';
 import { gridApi } from '../api/gridApi';
-import { getStatusBg, getStatusColor, formatBalance } from '../utils/statusHelpers';
-import {
-  ArrowLeft,
-  Sun,
-  Zap,
-  Brain,
-  ArrowRight,
-  ArrowLeftRight,
-  Loader2,
-} from 'lucide-react';
-
-function EnergyBarChart({ solar, consumption }) {
-  const max = Math.max(solar, consumption, 1);
-  const solarPct = (solar / max) * 100;
-  const loadPct = (consumption / max) * 100;
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <div className="flex items-center gap-1.5">
-            <Sun size={10} className="text-amber-400" />
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider">Solar Generation</span>
-          </div>
-          <span className="text-xs font-bold text-white text-mono">{solar} kW</span>
-        </div>
-        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber-400 rounded-full transition-all duration-500"
-            style={{ width: `${solarPct}%` }}
-          />
-        </div>
-      </div>
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <div className="flex items-center gap-1.5">
-            <Zap size={10} className="text-blue-400" />
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider">Consumption</span>
-          </div>
-          <span className="text-xs font-bold text-white text-mono">{consumption} kW</span>
-        </div>
-        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-            style={{ width: `${loadPct}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+import { getStatusColor, formatBalance } from '../utils/statusHelpers';
+import { ArrowLeft } from 'lucide-react';
 
 export default function BuildingDetails() {
   const { id } = useParams();
@@ -64,7 +14,6 @@ export default function BuildingDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch individual building details directly from GET /api/buildings/:id
   useEffect(() => {
     let isMounted = true;
     async function loadBuilding() {
@@ -77,13 +26,16 @@ export default function BuildingDetails() {
         }
       } catch (err) {
         if (isMounted) {
-          console.error('[BuildingDetails] Error fetching building:', err);
-          // Fallback to central state if available
-          const fallback = state?.buildings?.find((b) => b.buildingId === id);
+          console.warn('[BuildingDetails] Fallback to state:', err);
+          const cleanId = id?.toLowerCase();
+          const fallback = state?.buildings?.find((b) => {
+            const bId = b.buildingId?.toLowerCase();
+            return bId === cleanId || bId?.replace(/\D/g, '') === cleanId?.replace(/\D/g, '');
+          });
           if (fallback) {
             setBuilding(fallback);
           } else {
-            setError(err.message || 'Building not found');
+            setError(err.message || 'Node not found');
           }
         }
       } finally {
@@ -99,10 +51,10 @@ export default function BuildingDetails() {
 
   if (loading && !building) {
     return (
-      <div className="flex flex-col h-screen bg-[#080c14] items-center justify-center gap-3">
-        <Loader2 size={24} className="text-blue-400 animate-spin" />
-        <span className="text-xs text-slate-400 text-mono uppercase tracking-widest">
-          Fetching building details from backend...
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[65dvh] gap-3">
+        <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-emerald-500 animate-spin" />
+        <span className="text-xs font-mono text-[var(--text-muted)]">
+          Loading node telemetry...
         </span>
       </div>
     );
@@ -110,202 +62,260 @@ export default function BuildingDetails() {
 
   if (error || !building) {
     return (
-      <div className="flex flex-col h-screen bg-[#080c14] items-center justify-center p-6 text-center">
-        <p className="text-red-400 text-mono text-sm mb-2">{error || 'Building not found.'}</p>
-        <button onClick={() => navigate('/buildings')} className="text-blue-400 text-xs hover:underline uppercase text-mono">
-          ← Back to Buildings Overview
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[65dvh] p-6 text-center">
+        <p className="text-rose-500 text-sm mb-4">{error || 'Node not found.'}</p>
+        <button
+          onClick={() => navigate('/buildings')}
+          className="text-[var(--accent-primary)] text-xs font-medium hover:underline"
+        >
+          ← Return to Buildings
         </button>
       </div>
     );
   }
 
-  // Filter transfers specific to this building dynamically from backend transactions
   const transactions = state?.transactions || [];
-  const recentTransfers = transactions
-    .filter((tx) => tx.from === id || tx.to === id)
-    .map((tx) => ({
-      direction: tx.from === id ? 'OUT' : 'IN',
-      target: tx.from === id ? tx.toName : tx.fromName,
-      amount: tx.amount,
-      timestamp: tx.timestamp,
-      status: tx.status,
-    }));
+  const cleanId = id?.toLowerCase();
+  const cleanNum = cleanId?.replace(/\D/g, '');
+  const nodeTransfers = transactions.filter((tx) => {
+    const fromId = tx.from?.toLowerCase();
+    const toId = tx.to?.toLowerCase();
+    return (
+      fromId === cleanId ||
+      toId === cleanId ||
+      (cleanNum && (fromId?.replace(/\D/g, '') === cleanNum || toId?.replace(/\D/g, '') === cleanNum))
+    );
+  });
 
   const { name, solarGeneration, consumption, batteryLevel, energyBalance, status, aiPrediction } = building;
   const statusColor = getStatusColor(status);
-  const statusBadge = getStatusBg(status);
   const balLabel = formatBalance(energyBalance);
 
-  return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#080c14]">
-      <TopBar title={name} subtitle="Building Details & Backend Real-Time Analytics" />
+  const maxVal = Math.max(solarGeneration || 0, consumption || 0, 1);
+  const solarWidth = Math.round(((solarGeneration || 0) / maxVal) * 100);
+  const loadWidth = Math.round(((consumption || 0) / maxVal) * 100);
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Back button + header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/buildings')}
-            className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-200 uppercase tracking-wider transition-colors text-mono"
-          >
-            <ArrowLeft size={11} />
-            Buildings
-          </button>
-          <div className="text-slate-700">/</div>
-          <span className="text-[10px] text-slate-300 text-mono uppercase tracking-wider">{name}</span>
-          <div className="ml-auto">
-            <span className={`text-[10px] font-medium px-3 py-1 rounded border tracking-widest uppercase text-mono ${statusBadge}`}>
-              {status}
-            </span>
-          </div>
+  return (
+    <div className="flex flex-col gap-8">
+      {/* ── Breadcrumb & Top Bar ── */}
+      <div className="flex items-center justify-between gap-4 stagger-1">
+        <button
+          onClick={() => navigate('/buildings')}
+          className="inline-flex items-center gap-2 text-xs font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer interactive-tap"
+        >
+          <ArrowLeft size={13} />
+          <span>← All Substations</span>
+        </button>
+
+        <div className="flex items-center gap-3 font-mono text-xs">
+          <span className="text-[var(--text-muted)]">Substation: {id?.toUpperCase()}</span>
+          <span className={`font-medium uppercase ${statusColor}`}>{status}</span>
+        </div>
+      </div>
+
+      {/* ── Hero Balance & Profile Row ── */}
+      <div className="pb-8 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-end justify-between gap-8 stagger-2">
+        <div>
+          <span className="text-eyebrow block mb-1">
+            Substation Facility Profile
+          </span>
+          <h1 className="text-title-lg text-[var(--text-primary)]">
+            {name}
+          </h1>
+          <p className="text-body-sm text-[var(--text-secondary)] mt-2 max-w-lg">
+            Operational status: {status === 'SURPLUS' ? 'Exporting renewable generation surplus to campus microgrid interconnect' : status === 'DEFICIT' ? 'Buffering supplementary power from peer substations and central BESS' : 'Autonomous standalone equilibrium'}
+          </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          {/* Left column */}
-          <div className="col-span-2 space-y-4">
-            {/* Stats row */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="glass-panel rounded-lg p-3 border border-amber-500/15">
-                <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-1">Solar Gen</div>
-                <div className="text-xl font-bold text-white text-mono">{solarGeneration} <span className="text-[11px] text-slate-500">kW</span></div>
+        {/* Hero Balance Metric */}
+        <div className="flex flex-col sm:items-end justify-center shrink-0">
+          <span className="text-eyebrow mb-1">Net Power Balance</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-5xl font-light font-mono tracking-tight ${statusColor}`}>
+              {balLabel}
+            </span>
+            <span className="text-base font-mono text-[var(--text-muted)]">kW</span>
+          </div>
+          <span className="text-[10px] font-mono text-[var(--text-muted)] mt-1">Instantaneous Physical Telemetry</span>
+        </div>
+      </div>
+
+      {/* ── Main Workstation: Power Comparator & Details (Asymmetric 70/30) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start stagger-3">
+        {/* Left Column: Power Balance Comparator & Transfers (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-8">
+          {/* Visual Power Balance Comparator */}
+          <div className="p-6 panel-surface border border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between pb-4 mb-5 border-b border-[var(--border-subtle)]">
+              <div>
+                <h3 className="text-xs font-mono uppercase tracking-wider text-[var(--text-primary)]">
+                  Power Balance Comparator
+                </h3>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Photovoltaic output vs active facility demand
+                </span>
               </div>
-              <div className="glass-panel rounded-lg p-3 border border-blue-500/15">
-                <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-1">Load</div>
-                <div className="text-xl font-bold text-white text-mono">{consumption} <span className="text-[11px] text-slate-500">kW</span></div>
-              </div>
-              <div className="glass-panel rounded-lg p-3 border border-white/8">
-                <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-1">Battery</div>
-                <div className="text-xl font-bold text-white text-mono">{batteryLevel}<span className="text-[11px] text-slate-500">%</span></div>
-                <div className="mt-1.5 h-1 bg-slate-800 rounded-full overflow-hidden">
+              <span className="text-xs font-mono text-[var(--text-primary)] font-medium">
+                Net: {balLabel} kW
+              </span>
+            </div>
+
+            <div className="space-y-5">
+              {/* Solar Generation Bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
+                  <span className="text-[var(--text-secondary)]">Solar Generation</span>
+                  <span className="font-medium text-[var(--text-primary)]">{solarGeneration} kW</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${batteryLevel > 60 ? 'bg-emerald-400' : batteryLevel > 35 ? 'bg-amber-400' : 'bg-red-400'}`}
-                    style={{ width: `${batteryLevel}%` }}
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${solarWidth}%`, backgroundColor: 'var(--accent-primary)' }}
                   />
                 </div>
               </div>
-              <div className={`glass-panel rounded-lg p-3 border ${
-                energyBalance > 0 ? 'border-emerald-500/25' : energyBalance < 0 ? 'border-red-500/25' : 'border-blue-500/25'
-              }`}>
-                <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-1">Balance</div>
-                <div className={`text-xl font-bold text-mono ${statusColor}`}>{balLabel} <span className="text-[11px] text-slate-500">kW</span></div>
-              </div>
-            </div>
 
-            {/* Energy bar chart */}
-            <div className="glass-panel rounded-lg p-4 border border-blue-900/20">
-              <div className="text-[10px] text-slate-400 uppercase tracking-widest text-mono mb-4">
-                Generation vs. Consumption
+              {/* Load Demand Bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
+                  <span className="text-[var(--text-secondary)]">Active Demand</span>
+                  <span className="font-medium text-[var(--text-primary)]">{consumption} kW</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${loadWidth}%`, backgroundColor: 'var(--text-muted)' }}
+                  />
+                </div>
               </div>
-              <EnergyBarChart solar={solarGeneration} consumption={consumption} />
-              <div className="mt-4 pt-3 border-t border-white/5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider">Net Energy Balance</span>
-                  <span className={`text-sm font-bold text-mono ${statusColor}`}>{balLabel} kW</span>
+
+              {/* Local Storage Bar */}
+              <div className="pt-4 border-t border-[var(--border-subtle)]">
+                <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
+                  <span className="text-[var(--text-secondary)]">Local Storage State of Charge</span>
+                  <span className="font-medium text-[var(--text-primary)]">{batteryLevel}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${batteryLevel}%`,
+                      backgroundColor: batteryLevel > 35 ? 'var(--text-secondary)' : 'var(--status-deficit)',
+                    }}
+                  />
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Recent Transfers */}
-            <div className="glass-panel rounded-lg overflow-hidden border border-blue-900/20">
-              <div className="px-4 py-3 border-b border-blue-900/30">
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest text-mono font-medium">
-                  Recent Energy Transfers (Backend Live)
+          {/* Node Transfer History */}
+          <div className="p-6 panel-surface border border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--border-subtle)]">
+              <div>
+                <h3 className="text-xs font-mono uppercase tracking-wider text-[var(--text-primary)]">
+                  Node Transfer Ledger
+                </h3>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Energy dispatches originating or terminating at this facility
                 </span>
               </div>
-              {recentTransfers.length > 0 ? (
-                <div className="divide-y divide-white/3">
-                  {recentTransfers.map((tx, i) => (
-                    <div key={i} className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                          tx.direction === 'OUT' ? 'bg-emerald-500/10' : 'bg-blue-500/10'
-                        }`}>
-                          {tx.direction === 'OUT'
-                            ? <ArrowRight size={11} className="text-emerald-400" />
-                            : <ArrowLeftRight size={11} className="text-blue-400" />
-                          }
-                        </div>
+              <span className="text-xs font-mono text-[var(--text-muted)]">
+                {nodeTransfers.length} Event(s)
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {nodeTransfers.length > 0 ? (
+                nodeTransfers.map((tx, idx) => {
+                  const isOut = tx.from === id;
+                  return (
+                    <div
+                      key={tx.id || idx}
+                      className="flex items-center justify-between p-3 border-b border-[var(--border-subtle)] last:border-b-0 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-[10px] uppercase text-[var(--accent-primary)] font-medium">
+                          {isOut ? 'EXPORT' : 'IMPORT'}
+                        </span>
                         <div>
-                          <div className="text-xs text-slate-200 text-mono">
-                            {tx.direction === 'OUT' ? `→ ${tx.target}` : `← ${tx.target}`}
-                          </div>
-                          <div className="text-[9px] text-slate-600">{tx.timestamp}</div>
+                          <span className="font-medium text-[var(--text-primary)] block">
+                            {isOut ? `→ ${tx.toName}` : `← ${tx.fromName}`}
+                          </span>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                            {tx.timestamp || 'Settled'} · {tx.type}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white text-mono">{tx.amount} kWh</span>
-                        <span className="text-[9px] text-emerald-400 text-mono border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 rounded">
-                          {tx.status}
+
+                      <div className="text-right font-mono">
+                        <span className="font-medium text-xs text-[var(--text-primary)] block">
+                          {tx.amount} kWh
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase">
+                          {tx.status || 'Settled'}
                         </span>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })
               ) : (
-                <div className="px-4 py-6 text-center text-[11px] text-slate-600">
-                  No transfers recorded for this building node yet.
+                <div className="py-8 text-center text-xs text-[var(--text-muted)]">
+                  No active transfer history recorded for this node in the current session.
                 </div>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Right column */}
-          <div className="space-y-4">
-            {/* AI Prediction */}
-            <div className="glass-panel rounded-lg p-4 border border-blue-500/20">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2">
-                  <Brain size={12} className="text-blue-400" />
-                  <span className="text-[10px] text-slate-300 uppercase tracking-widest text-mono font-medium">
-                    Energy Forecast
-                  </span>
-                </div>
-                <span className="text-[8px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded text-mono">
-                  PLACEHOLDER
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">{aiPrediction}</p>
-              <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
-                <span className="text-[9px] text-slate-500 text-mono">Baseline Advisory · ML Pipeline Planned</span>
-              </div>
+        {/* Right Column: Phase 3 Forecast Container & Node Specification (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-8">
+          {/* Phase 3 Forecast Preview Container */}
+          <div className="p-6 panel-surface border border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--border-subtle)]">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-[var(--text-primary)]">
+                1-Hour Forecast Baseline
+              </h3>
+              <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
+                Phase 3 Preview
+              </span>
             </div>
 
-            {/* Building info */}
-            <div className="glass-panel rounded-lg p-4 border border-blue-900/20 space-y-3">
-              <div className="text-[10px] text-slate-400 uppercase tracking-widest text-mono">Node Info</div>
-              <div className="space-y-2">
-                {[
-                  { label: 'Building ID', value: building.buildingId.toUpperCase() },
-                  { label: 'Status', value: status },
-                  { label: 'Node Role', value: status === 'SURPLUS' ? 'Energy Provider' : status === 'DEFICIT' ? 'Energy Consumer' : 'Self-Sufficient' },
-                  { label: 'P2P Eligible', value: status !== 'BALANCED' ? 'Yes' : 'Monitoring' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="text-[9px] text-slate-600 uppercase tracking-wider">{label}</span>
-                    <span className="text-[10px] text-slate-300 text-mono">{value}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="py-2 mb-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+              <span className="text-eyebrow block mb-1 text-[10px]">
+                Diurnal Advisory Model
+              </span>
+              <p>
+                {aiPrediction || 'Diurnal baseline: Photovoltaic output expected to follow standard solar elevation curve. No acute localized deficit projected for next hour.'}
+              </p>
             </div>
 
-            {/* Priority indicator */}
-            <div className="glass-panel rounded-lg p-4 border border-blue-900/20">
-              <div className="text-[10px] text-slate-400 uppercase tracking-widest text-mono mb-3">Energy Priority</div>
-              <div className="space-y-2">
-                {[
-                  { level: 1, label: 'P2P Sharing', active: true },
-                  { level: 2, label: 'Central Battery', active: batteryLevel < 40 },
-                  { level: 3, label: 'Main Grid', active: false },
-                ].map(({ level, label, active }) => (
-                  <div key={level} className="flex items-center gap-2">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold text-mono ${
-                      active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-white/3 text-slate-600 border border-white/5'
-                    }`}>
-                      {level}
-                    </div>
-                    <span className={`text-xs ${active ? 'text-slate-200' : 'text-slate-600'}`}>{label}</span>
-                    {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400" />}
-                  </div>
-                ))}
+            <p className="text-[11px] text-[var(--text-muted)] leading-normal pt-3 border-t border-[var(--border-subtle)]">
+              Full machine learning models will be introduced in Phase 3. No synthetic forecast charts or fabricated confidence metrics are presented.
+            </p>
+          </div>
+
+          {/* Node Specification List */}
+          <div className="p-6 panel-surface border border-[var(--border-subtle)]">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-[var(--text-primary)] pb-3 mb-3 border-b border-[var(--border-subtle)]">
+              Facility Specification
+            </h3>
+
+            <div className="space-y-3 text-xs font-mono">
+              <div className="flex justify-between py-1 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Substation Identifier</span>
+                <span className="text-[var(--text-primary)] font-medium">{id?.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">P2P Sharing Status</span>
+                <span className="text-[var(--status-surplus)] font-medium">Active Interconnect</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Central BESS Buffer</span>
+                <span className="text-[var(--text-primary)] font-medium">Tier 2 Coupled</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Grid Fallback</span>
+                <span className="text-[var(--text-muted)]">Tier 3 Standby</span>
               </div>
             </div>
           </div>

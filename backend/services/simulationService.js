@@ -1,7 +1,7 @@
 const gridState = require('./gridService');
 const { allocateEnergy } = require('./allocationService');
 const { INITIAL_BUILDINGS, INITIAL_CENTRAL_BATTERY } = require('../config/baselineData');
-const { round1, clamp } = require('../utils/gridHelpers');
+const { round1, clamp, getTimestamp, generateId } = require('../utils/gridHelpers');
 
 const SCENARIOS = {
   NORMAL: 'NORMAL',
@@ -65,6 +65,22 @@ function applyScenario(scenarioKey) {
       break;
   }
 
+  const scenarioLabels = {
+    NORMAL: 'Normal Baseline',
+    HIGH_SOLAR: 'High Solar Surge',
+    LOW_SOLAR: 'Low Solar (Overcast)',
+    HIGH_DEMAND: 'Campus Demand Peak',
+    LOW_BATTERY: 'Depleted BESS Reserve',
+    GRID_FAILURE: 'Grid Failure (Islanded Outage)',
+  };
+
+  gridState.addLogs([{
+    id: generateId(),
+    timestamp: getTimestamp(),
+    message: `Scenario activated: ${scenarioLabels[scenarioKey] || scenarioKey}`,
+    type: 'action',
+  }]);
+
   // Run allocation after applying scenario
   return allocateEnergy();
 }
@@ -101,6 +117,12 @@ function processTick() {
 
 function resetSimulation() {
   gridState.reset();
+  gridState.addLogs([{
+    id: generateId(),
+    timestamp: getTimestamp(),
+    message: 'Simulation reset to baseline state (Tick #0)',
+    type: 'info',
+  }]);
   return allocateEnergy();
 }
 

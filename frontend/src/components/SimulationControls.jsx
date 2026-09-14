@@ -1,100 +1,135 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGrid } from '../context/GridContext';
 import { SCENARIOS } from '../constants/scenarios';
-import { Play, Pause, RotateCcw, Sliders, Zap, Loader2, Brain } from 'lucide-react';
+import { Play, Pause, RotateCcw, Zap, Loader2, Cpu, ChevronDown, Check } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const SCENARIO_LABELS = [
-  { key: SCENARIOS.NORMAL, label: 'Normal' },
-  { key: SCENARIOS.HIGH_SOLAR, label: 'High Solar' },
-  { key: SCENARIOS.LOW_SOLAR, label: 'Low Solar' },
-  { key: SCENARIOS.HIGH_DEMAND, label: 'High Demand' },
-  { key: SCENARIOS.LOW_BATTERY, label: 'Low Battery' },
-  { key: SCENARIOS.GRID_FAILURE, label: 'Grid Failure' },
+const SCENARIO_OPTIONS = [
+  { key: SCENARIOS.NORMAL, label: 'Normal Baseline' },
+  { key: SCENARIOS.HIGH_SOLAR, label: 'High Solar Surge' },
+  { key: SCENARIOS.LOW_SOLAR, label: 'Low Solar (Overcast)' },
+  { key: SCENARIOS.HIGH_DEMAND, label: 'Campus Demand Peak' },
+  { key: SCENARIOS.LOW_BATTERY, label: 'Depleted BESS Reserve' },
+  { key: SCENARIOS.GRID_FAILURE, label: 'Grid Failure (Islanded Outage)' },
 ];
 
 export default function SimulationControls() {
   const { state, setScenario, triggerAllocate, runAgent, agentRunning, togglePause, reset, actionLoading } = useGrid();
+  const { isDark } = useTheme();
+  const [allocateStatus, setAllocateStatus] = useState('idle'); // 'idle' | 'allocating' | 'complete'
+
   const currentScenario = state?.currentScenario || 'NORMAL';
   const isPaused = state?.isPaused || false;
 
+  const handleAllocate = async () => {
+    if (allocateStatus !== 'idle' || actionLoading) return;
+    setAllocateStatus('allocating');
+    try {
+      await triggerAllocate();
+      setAllocateStatus('complete');
+      setTimeout(() => {
+        setAllocateStatus('idle');
+      }, 1800);
+    } catch {
+      setAllocateStatus('idle');
+    }
+  };
+
   return (
-    <div className="glass-panel rounded-lg p-2.5 border border-blue-900/30 flex items-center justify-between gap-3 shrink-0">
-      {/* Label */}
-      <div className="flex items-center gap-2 px-2 shrink-0">
-        <Sliders size={13} className="text-blue-400" />
-        <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase text-mono">
-          Backend Scenarios
+    <div
+      className="w-full px-4 py-2.5 flex flex-wrap items-center justify-between gap-4 transition-colors border border-[var(--border-subtle)] panel-surface"
+    >
+      {/* Scenario Precision Selector */}
+      <div className="flex items-center gap-3 min-w-[240px]">
+        <span className="text-eyebrow">
+          Scenario
         </span>
+        <div className="relative flex items-center">
+          <select
+            value={currentScenario}
+            disabled={actionLoading}
+            onChange={(e) => setScenario(e.target.value)}
+            className="text-xs font-medium bg-transparent text-[var(--text-primary)] cursor-pointer focus:outline-none appearance-none pr-5 py-0.5"
+          >
+            {SCENARIO_OPTIONS.map(({ key, label }) => (
+              <option
+                key={key}
+                value={key}
+                className={isDark ? 'bg-[#181920] text-[#f3f0ea]' : 'bg-white text-[#1b1a17]'}
+              >
+                {label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={11} className="pointer-events-none absolute right-0 text-[var(--text-muted)]" />
+        </div>
       </div>
 
-      {/* Scenario Buttons */}
-      <div className="flex items-center gap-1.5 flex-wrap flex-1">
-        {SCENARIO_LABELS.map(({ key, label }) => {
-          const isActive = currentScenario === key;
-          const isDanger = key === SCENARIOS.GRID_FAILURE;
-
-          return (
-            <button
-              key={key}
-              disabled={actionLoading}
-              onClick={() => setScenario(key)}
-              className={`px-2.5 py-1 rounded text-[10px] font-medium tracking-wider uppercase text-mono transition-all duration-150 border disabled:opacity-50 ${
-                isActive
-                  ? isDanger
-                    ? 'bg-red-500/20 text-red-300 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                    : 'bg-blue-600/25 text-blue-300 border-blue-400/50 shadow-[0_0_10px_rgba(37,99,235,0.2)]'
-                  : 'bg-white/3 text-slate-400 border-white/5 hover:bg-white/5 hover:text-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Manual Allocation & Controls */}
-      <div className="flex items-center gap-1.5 pl-2 border-l border-blue-900/40 shrink-0">
+      {/* Control Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Run Autonomous Agent Cycle */}
         <button
           disabled={actionLoading || agentRunning}
           onClick={() => runAgent()}
-          className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold tracking-wider uppercase text-mono border border-purple-500/40 bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 disabled:opacity-50 transition-all shadow-[0_0_10px_rgba(147,51,234,0.2)]"
-          title="Run Bounded AI Agent Loop"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 interactive-tap"
+          style={{
+            backgroundColor: 'var(--accent-primary)',
+            color: 'var(--accent-contrast)',
+          }}
+          title="Run autonomous AI dispatch cycle"
         >
-          <Brain size={10} className={`text-purple-400 ${agentRunning ? 'animate-spin' : ''}`} />
-          <span>{agentRunning ? 'AGENT...' : 'RUN AGENT'}</span>
+          <Cpu size={12} className={agentRunning ? 'animate-spin' : ''} />
+          <span>{agentRunning ? 'Evaluating...' : 'Dispatch Cycle'}</span>
         </button>
 
+        {/* Allocate Energy */}
         <button
-          disabled={actionLoading}
-          onClick={triggerAllocate}
-          className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold tracking-wider uppercase text-mono border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 disabled:opacity-50 transition-all"
-          title="Trigger Backend Allocation Engine"
+          disabled={actionLoading || allocateStatus === 'allocating'}
+          onClick={handleAllocate}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer disabled:opacity-50 interactive-tap border border-[var(--accent-border)] bg-[var(--accent-subtle)] text-[var(--accent-primary)]"
+          title="Authoritatively allocate pending energy reservations"
         >
-          <Zap size={10} className="text-blue-400" />
-          <span>Allocate</span>
+          {allocateStatus === 'allocating' ? (
+            <>
+              <Loader2 size={12} className="animate-spin" />
+              <span>Allocating...</span>
+            </>
+          ) : allocateStatus === 'complete' ? (
+            <>
+              <Check size={12} className="text-[var(--status-surplus)]" />
+              <span className="text-[var(--status-surplus)]">Allocation complete</span>
+            </>
+          ) : (
+            <>
+              <Zap size={12} />
+              <span>Allocate</span>
+            </>
+          )}
         </button>
 
+        {/* Live / Pause Ticks */}
         <button
           onClick={togglePause}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold tracking-wider uppercase text-mono border transition-all ${
-            isPaused
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-          }`}
-          title={isPaused ? 'Resume Simulation Ticks' : 'Pause Simulation Ticks'}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal transition-all duration-150 cursor-pointer interactive-tap font-mono border border-[var(--border-subtle)] hover:border-[var(--border-default)]"
+          style={{
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+            color: isPaused ? 'var(--status-warning)' : 'var(--text-primary)',
+          }}
+          title={isPaused ? 'Resume live simulation ticks' : 'Pause simulation ticks'}
         >
-          {isPaused ? <Play size={10} /> : <Pause size={10} />}
-          <span>{isPaused ? 'PAUSED' : 'LIVE'}</span>
+          {isPaused ? <Play size={11} /> : <Pause size={11} />}
+          <span>{isPaused ? 'Paused' : 'Live'}</span>
         </button>
 
+        {/* Reset */}
         <button
           disabled={actionLoading}
           onClick={reset}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium tracking-wider uppercase text-mono bg-white/3 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-white disabled:opacity-50 transition-all"
-          title="Reset to Baseline State"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50 interactive-tap font-mono border border-[var(--border-subtle)]"
+          title="Reset simulation baseline"
         >
-          {actionLoading ? <Loader2 size={10} className="animate-spin text-blue-400" /> : <RotateCcw size={10} />}
-          <span>Reset</span>
+          {actionLoading ? <Loader2 size={11} className="animate-spin text-[var(--accent-primary)]" /> : <RotateCcw size={11} />}
+          <span className="hidden sm:inline">Reset</span>
         </button>
       </div>
     </div>

@@ -1,6 +1,9 @@
-import { CheckCircle2, Clock, AlertTriangle, Cpu, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle2, Clock, AlertTriangle, Cpu, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function AIDecisionCard({ decision }) {
+  const [expanded, setExpanded] = useState(false);
+
   const {
     situation,
     decision: dec,
@@ -17,103 +20,125 @@ export default function AIDecisionCard({ decision }) {
 
   const displayAmount = amountKwh !== undefined ? amountKwh : amount;
   const isAgent = sourceMode === 'GEMINI_AGENT';
-  const isFallback = sourceMode === 'DETERMINISTIC_SAFETY_FALLBACK';
+  const cardModel = decision.model
+    ? decision.model.replace(/^models\//, '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'Gemini Agent';
 
   const resultStyle =
     result === 'COMPLETED' || result === 'EXECUTED'
-      ? { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' }
+      ? { icon: CheckCircle2, color: 'text-[var(--status-surplus)]', bg: 'bg-[var(--status-surplus-bg)] border-[var(--status-surplus-border)]' }
       : result === 'ACTIVE'
-      ? { icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30' }
-      : { icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' };
+      ? { icon: Clock, color: 'text-[var(--accent-primary)]', bg: 'bg-[var(--accent-subtle)] border-[var(--accent-border)]' }
+      : { icon: AlertTriangle, color: 'text-[var(--status-warning)]', bg: 'bg-[var(--status-warning-bg)] border-[var(--status-warning-border)]' };
 
   const ResultIcon = resultStyle.icon;
 
   return (
-    <div className="glass-panel rounded-lg p-5 border border-blue-900/20 hover:border-blue-700/30 transition-all">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[9px] text-slate-600 uppercase tracking-widest text-mono">Situation</span>
-            {sourceMode && (
-              <span
-                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border text-mono uppercase tracking-wider ${
-                  isAgent
-                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
-                    : isFallback
-                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                    : 'bg-slate-500/10 text-slate-400 border-slate-500/30'
-                }`}
-              >
-                {isAgent ? 'Gemini AI Agent' : 'Safety Fallback'}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-200 leading-relaxed">{situation}</p>
-        </div>
-        <div className="shrink-0 flex flex-col items-end gap-1">
-          <span className={`text-[9px] font-medium px-2 py-0.5 rounded border flex items-center gap-1 ${resultStyle.bg} ${resultStyle.color}`}>
-            <ResultIcon size={9} />
-            <span className="text-mono tracking-wider uppercase">{result}</span>
+    <div className="p-6 panel-surface border border-[var(--border-subtle)] transition-all duration-200">
+      {/* ── Top Bar: Engine Mode, Result Status, Timestamp ── */}
+      <div className="flex items-center justify-between gap-3 pb-4 mb-4 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-[var(--border-subtle)] flex items-center gap-1.5 text-[var(--text-muted)]">
+            <Cpu size={11} className={isAgent ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'} />
+            <span className="text-[var(--text-secondary)]">{isAgent ? cardModel : 'Safety Fallback'}</span>
           </span>
-          <span className="text-[10px] text-slate-600 text-mono">{timestamp}</span>
+
+          {confidence !== null && confidence !== undefined && (
+            <span className="text-[10px] font-mono text-[var(--text-muted)]">
+              {(confidence * 100).toFixed(0)}% confidence
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 font-mono text-xs">
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded uppercase border flex items-center gap-1 ${resultStyle.bg} ${resultStyle.color}`}>
+            <ResultIcon size={11} />
+            <span>{result}</span>
+          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">
+            {timestamp || 'Settled'}
+          </span>
         </div>
       </div>
 
-      {/* Decision */}
-      <div className="mb-3 p-3 bg-blue-500/5 rounded border border-blue-500/15">
-        <div className="text-[9px] text-blue-400 uppercase tracking-widest text-mono mb-1 flex items-center justify-between">
-          <span>AI Decision</span>
-          {confidence && <span className="text-[8px] text-slate-500">Confidence: {(confidence * 100).toFixed(0)}%</span>}
+      {/* ── Strategic Directive & Rationale ── */}
+      <div className="space-y-3">
+        <div>
+          <span className="text-eyebrow block mb-1 text-[10px]">
+            Dispatch Directive
+          </span>
+          <p className="text-base sm:text-lg font-normal text-[var(--text-primary)] leading-snug tracking-tight">
+            {dec}
+          </p>
         </div>
-        <p className="text-xs text-slate-200">{dec}</p>
-      </div>
 
-      {/* Details row */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
-        {displayAmount > 0 ? (
-          <div className="p-2 rounded bg-white/2 border border-white/5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-0.5">Energy Amount</div>
-            <div className="text-sm font-bold text-white text-mono">{displayAmount} <span className="text-[11px] text-slate-500 font-normal">kWh</span></div>
-          </div>
-        ) : (
-          <div className="p-2 rounded bg-white/2 border border-white/5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-0.5">Action</div>
-            <div className="text-xs font-bold text-slate-300 text-mono">NO ACTION</div>
+        {reason && (
+          <div className="py-2 text-xs text-[var(--text-secondary)] leading-relaxed">
+            <span className="text-eyebrow block mb-1 text-[10px]">
+              Operational Rationale
+            </span>
+            <p>{reason}</p>
           </div>
         )}
-        <div className="p-2 rounded bg-white/2 border border-white/5 col-span-1">
-          <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-0.5">Validation</div>
-          <div className="text-[10px] text-emerald-400 text-mono flex items-center gap-1">
-            <ShieldCheck size={10} />
-            {validationResult || 'Backend Verified'}
-          </div>
+      </div>
+
+      {/* ── Metric Summary Strip ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-[var(--border-subtle)] text-xs font-mono">
+        <div>
+          <span className="text-eyebrow block mb-0.5 text-[10px]">Energy Transfer</span>
+          <span className="font-medium text-sm text-[var(--text-primary)]">
+            {displayAmount > 0 ? `${displayAmount} kWh` : 'Zero Transfer'}
+          </span>
         </div>
-        <div className="p-2 rounded bg-white/2 border border-white/5 col-span-1">
-          <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-0.5">Priority</div>
-          <div className="text-xs text-slate-300">P2P → Battery → Grid</div>
+
+        <div>
+          <span className="text-eyebrow block mb-0.5 text-[10px]">Physical Invariant</span>
+          <span className="font-medium text-xs text-[var(--status-surplus)] flex items-center gap-1 pt-0.5">
+            <ShieldCheck size={12} />
+            <span>{validationResult || 'Conservation Verified'}</span>
+          </span>
+        </div>
+
+        <div className="col-span-2 sm:col-span-1 flex items-center justify-end">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1 cursor-pointer transition-colors interactive-tap"
+          >
+            <span>{expanded ? 'Hide Audit Trace' : 'Inspect Audit Trace'}</span>
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
         </div>
       </div>
 
-      {/* Tools Used (if available) */}
-      {toolsUsed && toolsUsed.length > 0 && (
-        <div className="mb-3 flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] text-slate-600 text-mono uppercase tracking-wider flex items-center gap-1">
-            <Cpu size={9} /> Tools Called:
-          </span>
-          {toolsUsed.map((tool) => (
-            <span key={tool} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-white/3 border border-white/10 text-slate-400">
-              {tool}()
-            </span>
-          ))}
+      {/* ── Expandable Technical Audit Trace ── */}
+      {expanded && (
+        <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] space-y-3 text-xs font-mono">
+          {situation && (
+            <div>
+              <span className="text-eyebrow block mb-1 text-[10px]">Telemetry Trigger Context</span>
+              <p className="text-[var(--text-secondary)] text-[11px] font-mono p-3 rounded border border-[var(--border-subtle)] bg-black/[0.02] dark:bg-white/[0.02]">
+                {situation}
+              </p>
+            </div>
+          )}
+
+          {toolsUsed && toolsUsed.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              <span className="text-eyebrow text-[10px] flex items-center gap-1">
+                <Cpu size={11} /> Tool Invocations:
+              </span>
+              {toolsUsed.map((tool) => (
+                <span
+                  key={tool}
+                  className="px-2 py-0.5 rounded text-[10px] font-mono border border-[var(--border-subtle)] text-[var(--text-primary)] bg-black/[0.02] dark:bg-white/[0.02]"
+                >
+                  {tool}()
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
-
-      {/* Reason */}
-      <div>
-        <div className="text-[9px] text-slate-500 uppercase tracking-widest text-mono mb-1">Reasoning Summary</div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">{reason}</p>
-      </div>
     </div>
   );
 }

@@ -1,65 +1,77 @@
-import { getActivityTypeColor } from '../utils/statusHelpers';
-import { Brain } from 'lucide-react';
+import React from 'react';
+import { Activity, CheckCircle2, AlertTriangle, Zap, Info } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-export default function AIActivityPanel({ events, agentStatus = {} }) {
+export default function AIActivityPanel({ events = [] }) {
+  const { isDark } = useTheme();
+  // Prioritize active operational dispatches, transfers, and alerts over routine telemetry scans
+  const prioritized = events.filter((e) => e.type === 'action' || e.type === 'success' || e.type === 'warning' || e.type === 'alert');
+  const recentEvents = (prioritized.length >= 3 ? prioritized : events).slice(0, 6);
+
+  const getEventIcon = (type) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle2 size={12} className="text-[var(--status-surplus)] shrink-0" />;
+      case 'warning':
+      case 'alert':
+        return <AlertTriangle size={12} className="text-[var(--status-deficit)] shrink-0" />;
+      case 'action':
+        return <Zap size={12} className="text-[var(--accent-primary)] shrink-0" />;
+      default:
+        return <Info size={12} className="text-[var(--text-muted)] shrink-0" />;
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="rounded-2xl p-6 flex flex-col h-full transition-colors panel-surface border border-[var(--border-subtle)]">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-blue-900/30 shrink-0 bg-[#0d131f]">
-        <Brain size={12} className="text-purple-400" />
-        <span className="text-[10px] font-medium tracking-widest text-slate-300 uppercase text-mono">
-          Agent Activity
-        </span>
-        <div className="ml-auto flex items-center gap-1.5">
-          {agentStatus?.mode === 'GEMINI_AGENT' ? (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(59,130,246,0.8)]" />
-              <span className="text-[9px] text-blue-400 text-mono">GEMINI</span>
-            </>
-          ) : (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-              <span className="text-[9px] text-orange-400 text-mono">FALLBACK</span>
-            </>
-          )}
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-2">
+          <Activity size={13} className="text-[var(--text-muted)]" />
+          <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-primary)]">
+            Operational Log
+          </span>
         </div>
+        <span className="text-[10px] font-mono text-[var(--text-muted)]">
+          Live Dispatch
+        </span>
       </div>
 
-      {/* Feed */}
-      <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
-        {events.map((event) => (
-          <div
-            key={event.id}
-            className="px-4 py-2 hover:bg-white/2 transition-colors flex gap-3 items-start border-b border-white/3"
-          >
-            {/* Timestamp */}
-            <span className="text-[9px] text-slate-600 text-mono shrink-0 pt-0.5 w-14">
-              {event.timestamp}
-            </span>
-
-            {/* Dot */}
-            <div className="shrink-0 mt-1.5">
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${
-                  event.type === 'success'
-                    ? 'bg-emerald-400'
-                    : event.type === 'warning'
-                    ? 'bg-amber-400'
-                    : event.type === 'alert'
-                    ? 'bg-red-400'
-                    : event.type === 'action'
-                    ? 'bg-blue-400'
-                    : 'bg-slate-600'
-                }`}
-              />
+      {/* Timeline entries */}
+      <div className="flex-1 space-y-2 overflow-y-auto">
+        {recentEvents.length > 0 ? (
+          recentEvents.map((evt, idx) => (
+            <div
+              key={evt.id || idx}
+              className="flex items-start gap-2.5 p-2.5 rounded-md text-xs transition-colors border border-[var(--border-subtle)]"
+              style={{
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+              }}
+            >
+              <div className="mt-0.5">{getEventIcon(evt.type)}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-normal text-[var(--text-primary)] leading-snug">
+                  {evt.message}
+                </p>
+                <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--text-muted)]">
+                  <span>{evt.timestamp || 'Settled'}</span>
+                  {evt.buildingId && (
+                    <>
+                      <span>·</span>
+                      <span className="uppercase font-medium text-[var(--text-secondary)]">
+                        {evt.buildingId}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-
-            {/* Message */}
-            <span className={`text-[11px] leading-relaxed ${getActivityTypeColor(event.type)}`}>
-              {event.message}
-            </span>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center h-28 text-center text-xs text-[var(--text-muted)]">
+            <span>Awaiting telemetry updates...</span>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

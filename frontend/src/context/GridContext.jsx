@@ -79,9 +79,11 @@ export function GridProvider({ children }) {
       } else {
         await refreshGridState(false);
       }
+      return res;
     } catch (err) {
       console.error('[GridContext] Allocation error:', err);
       setError(`Energy allocation failed: ${err.message}`);
+      throw err;
     } finally {
       setActionLoading(false);
     }
@@ -107,6 +109,25 @@ export function GridProvider({ children }) {
     }
   };
 
+  // Toggle Utility Main Grid Status (ONLINE / OFFLINE)
+  const toggleMainGrid = async () => {
+    setActionLoading(true);
+    try {
+      const nextStatus = gridState?.mainGrid?.status === 'ONLINE' ? 'OFFLINE' : 'ONLINE';
+      const res = await gridApi.setMainGridStatus(nextStatus);
+      if (res && res.gridState) {
+        setGridState(res.gridState);
+      } else {
+        await refreshGridState(false);
+      }
+    } catch (err) {
+      console.error('[GridContext] Toggle main grid error:', err);
+      setError(`Grid intertie toggle failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const togglePause = () => setIsPaused((prev) => !prev);
   const pause = () => setIsPaused(true);
   const resume = () => setIsPaused(false);
@@ -115,6 +136,9 @@ export function GridProvider({ children }) {
   const normalizedState = gridState
     ? {
         ...gridState,
+        tickId: gridState.tickId ?? 0,
+        tickCount: gridState.tickId ?? 0,
+        currentTick: gridState.tickId ?? 0,
         logs: gridState.logs || gridState.activity || [],
         summaryStats: gridState.summaryStats || {
           totalGeneration: 0,
@@ -155,6 +179,7 @@ export function GridProvider({ children }) {
       } else {
         await refreshGridState(false);
       }
+      await fetchAgentStatus();
       return res;
     } catch (err) {
       console.error('[GridContext] Run Agent error:', err);
@@ -197,6 +222,7 @@ export function GridProvider({ children }) {
     triggerAllocate,
     runAgent,
     toggleAutoMode,
+    toggleMainGrid,
     togglePause,
     pause,
     resume,

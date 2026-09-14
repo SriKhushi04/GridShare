@@ -48,7 +48,7 @@ async function runDeterministicFallback(customObjective) {
 
   const decisionRecord = {
     id: generateId(),
-    timestamp,
+    timestamp: getTimestamp(),
     status: 'EXECUTED',
     action: actionType,
     from: fromName,
@@ -61,6 +61,7 @@ async function runDeterministicFallback(customObjective) {
     confidence: null,
     objective: customObjective || 'Maintain microgrid energy balance while prioritizing local reserves',
     sourceMode: 'DETERMINISTIC_SAFETY_FALLBACK',
+    model: null,
     toolsUsed: [],
     iterations: 1,
     validationResult: 'APPROVED (Deterministic Rule Engine)',
@@ -71,6 +72,12 @@ async function runDeterministicFallback(customObjective) {
   };
 
   gridState.addAiDecisions([decisionRecord]);
+  gridState.addLogs([{
+    id: generateId(),
+    timestamp,
+    message: `Autonomous Dispatch [Fallback]: ${decisionText}`,
+    type: 'action',
+  }]);
 
   return {
     success: true,

@@ -4,6 +4,7 @@ const {
   getTimestamp,
   generateId,
   BATTERY_CAPACITY,
+  powerToEnergyKwh,
 } = require('../utils/gridHelpers');
 
 /**

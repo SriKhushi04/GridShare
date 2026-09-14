@@ -250,7 +250,15 @@ class GridState {
   }
 
   getBuildingById(id) {
-    return this.buildings.find((b) => b.buildingId === id);
+    if (!id) return null;
+    const cleanId = String(id).toLowerCase().trim();
+    return this.buildings.find((b) => {
+      const bId = b.buildingId.toLowerCase();
+      if (bId === cleanId) return true;
+      const num1 = cleanId.replace(/\D/g, '');
+      const num2 = bId.replace(/\D/g, '');
+      return num1 && num2 && parseInt(num1, 10) === parseInt(num2, 10);
+    });
   }
 
   updateBuilding(id, updateData) {

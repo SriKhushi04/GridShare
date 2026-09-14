@@ -1,90 +1,126 @@
-import { getStatusColor, getStatusBg, formatBalance } from '../utils/statusHelpers';
-import { Sun, Zap, Battery } from 'lucide-react';
-
-function BatteryBar({ level, compact = false }) {
-  const color =
-    level > 60 ? 'bg-emerald-400' : level > 35 ? 'bg-amber-400' : 'bg-red-400';
-
-  return (
-    <div className="flex items-center gap-1.5">
-      {!compact && <Battery size={10} className="text-slate-500" />}
-      <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${color}`}
-          style={{ width: `${level}%` }}
-        />
-      </div>
-      <span className="text-[10px] text-slate-400 text-mono w-8 text-right">{level}%</span>
-    </div>
-  );
-}
+import React from 'react';
+import { getStatusColor, formatBalance } from '../utils/statusHelpers';
+import { ArrowRight } from 'lucide-react';
 
 export default function BuildingCard({ building, onClick }) {
-  const { name, solarGeneration, consumption, batteryLevel, energyBalance, status } = building;
+  const { buildingId, name, solarGeneration, consumption, batteryLevel, energyBalance, status } = building;
   const statusColor = getStatusColor(status);
-  const statusBadge = getStatusBg(status);
 
-  const borderColor =
+  // Derive 2-digit index (e.g., 'b1' -> '01')
+  const rawNum = buildingId ? buildingId.replace(/\D/g, '') : '';
+  const nodeIndex = rawNum ? rawNum.padStart(2, '0') : '01';
+
+  const roleText =
     status === 'SURPLUS'
-      ? 'border-emerald-500/25 hover:border-emerald-500/50'
+      ? 'Energy Provider'
       : status === 'DEFICIT'
-      ? 'border-red-500/25 hover:border-red-500/50'
-      : 'border-blue-500/25 hover:border-blue-500/50';
+      ? 'Energy Consumer'
+      : 'Self-Sufficient';
+
+  const maxVal = Math.max(solarGeneration || 0, consumption || 0, 1);
+  const solarWidth = Math.round(((solarGeneration || 0) / maxVal) * 100);
+  const loadWidth = Math.round(((consumption || 0) / maxVal) * 100);
 
   return (
     <div
       onClick={onClick}
-      className={`glass-panel rounded-lg p-4 cursor-pointer transition-all duration-200 border ${borderColor} hover:bg-white/2 group`}
+      className="p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group interactive-tap panel-surface border border-[var(--border-subtle)] hover:border-[var(--border-default)] relative overflow-hidden"
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="text-[9px] text-slate-600 tracking-widest uppercase text-mono mb-0.5">
-            Microgrid Node
+      <div>
+        {/* Top bar: Large Architectural Index + Status */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <span className="text-3xl font-light font-mono text-[var(--text-muted)] tracking-tighter group-hover:text-[var(--text-secondary)] transition-colors">
+            {nodeIndex}
+          </span>
+          <div className="flex items-center gap-1.5 pt-1">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                status === 'SURPLUS'
+                  ? 'bg-[var(--status-surplus)]'
+                  : status === 'DEFICIT'
+                  ? 'bg-[var(--status-deficit)]'
+                  : 'bg-[var(--text-muted)]'
+              }`}
+            />
+            <span className={`text-[11px] font-mono uppercase tracking-wider ${statusColor}`}>
+              {status}
+            </span>
           </div>
-          <div className="text-sm font-semibold text-white tracking-wider text-mono uppercase">
+        </div>
+
+        {/* Substation Name & Role */}
+        <div className="mb-5">
+          <h3 className="text-base font-medium text-[var(--text-primary)] tracking-tight group-hover:text-[var(--accent-primary)] transition-colors">
             {name}
+          </h3>
+          <span className="text-xs text-[var(--text-muted)] mt-0.5 block">
+            {roleText}
+          </span>
+        </div>
+
+        {/* Generation vs Demand Slim Proportional Meters */}
+        <div className="space-y-3.5 my-5 pt-4 border-t border-[var(--border-subtle)]">
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1 font-mono">
+              <span className="text-[var(--text-muted)] text-[11px]">Solar Generation</span>
+              <span className="font-medium text-[var(--text-primary)]">{solarGeneration} kW</span>
+            </div>
+            <div className="h-1 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${solarWidth}%`, backgroundColor: 'var(--accent-primary)' }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1 font-mono">
+              <span className="text-[var(--text-muted)] text-[11px]">Active Demand</span>
+              <span className="font-medium text-[var(--text-primary)]">{consumption} kW</span>
+            </div>
+            <div className="h-1 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${loadWidth}%`, backgroundColor: 'var(--text-muted)' }}
+              />
+            </div>
+          </div>
+
+          {/* Local BESS Telemetry */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between text-xs mb-1 font-mono">
+              <span className="text-[var(--text-muted)] text-[11px]">Local BESS</span>
+              <span className="font-medium text-[var(--text-primary)]">{batteryLevel}%</span>
+            </div>
+            <div className="h-1 w-full rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${batteryLevel}%`,
+                  backgroundColor: batteryLevel > 35 ? 'var(--text-secondary)' : 'var(--status-deficit)',
+                }}
+              />
+            </div>
           </div>
         </div>
-        <span
-          className={`text-[9px] font-medium px-2 py-0.5 rounded border tracking-widest uppercase text-mono ${statusBadge}`}
-        >
-          {status}
-        </span>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1 text-[9px] text-slate-500 uppercase tracking-wider">
-            <Sun size={9} className="text-amber-400" />
-            Solar
-          </div>
-          <span className="text-sm font-bold text-white text-mono">{solarGeneration} <span className="text-[10px] text-slate-500 font-normal">kW</span></span>
+      {/* Footer: Prominent Net Balance + Inspect Link */}
+      <div className="pt-4 border-t border-[var(--border-subtle)] flex items-end justify-between">
+        <div>
+          <span className="text-eyebrow block mb-0.5 text-[10px]">
+            Net Balance
+          </span>
+          <span className={`text-xl font-light font-mono tracking-tight ${statusColor}`}>
+            {formatBalance(energyBalance)} <span className="text-xs font-mono text-[var(--text-muted)]">kW</span>
+          </span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1 text-[9px] text-slate-500 uppercase tracking-wider">
-            <Zap size={9} className="text-blue-400" />
-            Load
-          </div>
-          <span className="text-sm font-bold text-white text-mono">{consumption} <span className="text-[10px] text-slate-500 font-normal">kW</span></span>
+
+        <div className="flex items-center gap-1 text-xs text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors pb-0.5 font-mono">
+          <span>Details</span>
+          <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
         </div>
-      </div>
-
-      {/* Battery */}
-      <div className="mb-3">
-        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Battery</div>
-        <BatteryBar level={batteryLevel} />
-      </div>
-
-      {/* Balance */}
-      <div className="flex items-center justify-between pt-2 border-t border-white/5">
-        <span className="text-[9px] text-slate-500 uppercase tracking-wider">Balance</span>
-        <span className={`text-sm font-bold text-mono ${statusColor}`}>
-          {formatBalance(energyBalance)} kW
-        </span>
       </div>
     </div>
   );
 }
-

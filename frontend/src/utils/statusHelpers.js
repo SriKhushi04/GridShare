@@ -1,47 +1,56 @@
-// Utility helpers for Grid Share UI
-
+// Utility helpers for GridShare UI with Graphite/Stone/Champagne palette
 export function getStatusColor(status) {
   switch (status) {
-    case 'SURPLUS': return 'text-emerald-400';
-    case 'DEFICIT': return 'text-red-400';
-    case 'BALANCED': return 'text-blue-400';
-    default: return 'text-slate-400';
+    case 'SURPLUS': return 'text-[var(--status-surplus)]';
+    case 'DEFICIT': return 'text-[var(--status-deficit)]';
+    case 'BALANCED': return 'text-[var(--status-balanced)]';
+    default: return 'text-[var(--text-muted)]';
   }
 }
 
 export function getStatusBg(status) {
   switch (status) {
-    case 'SURPLUS': return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
-    case 'DEFICIT': return 'bg-red-500/10 border-red-500/30 text-red-400';
-    case 'BALANCED': return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
-    default: return 'bg-slate-500/10 border-slate-500/30 text-slate-400';
+    case 'SURPLUS':
+      return 'bg-surplus-subtle border-surplus text-[var(--status-surplus)]';
+    case 'DEFICIT':
+      return 'bg-deficit-subtle border-deficit text-[var(--status-deficit)]';
+    case 'BALANCED':
+      return 'bg-black/5 dark:bg-white/5 border-[var(--border-subtle)] text-[var(--text-secondary)]';
+    default:
+      return 'bg-black/5 dark:bg-white/5 border-[var(--border-subtle)] text-[var(--text-muted)]';
   }
 }
 
 export function getActivityTypeColor(type) {
   switch (type) {
-    case 'success': return 'text-emerald-400';
-    case 'warning': return 'text-amber-400';
-    case 'alert': return 'text-red-400';
-    case 'action': return 'text-blue-400';
-    case 'info': return 'text-slate-300';
-    default: return 'text-slate-400';
+    case 'success': return 'text-[var(--status-surplus)]';
+    case 'warning': return 'text-[var(--status-warning)]';
+    case 'alert': return 'text-[var(--status-deficit)]';
+    case 'action': return 'text-[var(--accent-primary)]';
+    case 'info': return 'text-[var(--text-secondary)]';
+    default: return 'text-[var(--text-muted)]';
   }
 }
 
 export function getTransactionTypeColor(type) {
   switch (type) {
-    case 'P2P': return 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+    case 'P2P':
+      return 'text-[var(--accent-primary)] bg-[var(--accent-subtle)] border-[var(--accent-border)]';
     case 'CENTRAL_BATTERY':
-    case 'BATTERY': return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-    case 'CHARGE': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+    case 'BATTERY':
+      return 'text-[var(--status-warning)] bg-amber-500/10 border-amber-500/20';
+    case 'CHARGE':
+      return 'text-[var(--status-surplus)] bg-surplus-subtle border-surplus';
     case 'MAIN_GRID':
-    case 'GRID': return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
-    default: return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
+    case 'GRID':
+      return 'text-[var(--text-secondary)] bg-black/5 dark:bg-white/5 border-[var(--border-subtle)]';
+    default:
+      return 'text-[var(--text-muted)] bg-black/5 dark:bg-white/5 border-[var(--border-subtle)]';
   }
 }
 
 export function formatBalance(balance) {
+  if (balance === undefined || balance === null || isNaN(balance)) return '0.0';
   if (balance > 0) return `+${balance.toFixed(1)}`;
   return balance.toFixed(1);
 }
@@ -50,16 +59,35 @@ export function getTransactionStatusStyle(status) {
   switch (status) {
     case 'COMPLETED':
     case 'EXECUTED':
-      return { color: 'text-emerald-400', icon: 'check' };
+      return {
+        color: 'text-[var(--status-surplus)]',
+        border: 'border-surplus',
+        bg: 'bg-surplus-subtle',
+        icon: 'check',
+      };
     case 'FAILED':
     case 'REJECTED':
-      return { color: 'text-red-400', icon: 'alert' };
+      return {
+        color: 'text-[var(--status-deficit)]',
+        border: 'border-deficit',
+        bg: 'bg-deficit-subtle',
+        icon: 'alert',
+      };
     case 'ACTIVE':
     case 'PENDING':
     case 'RESERVED':
-      return { color: 'text-blue-400', icon: 'clock' };
+      return {
+        color: 'text-[var(--accent-primary)]',
+        border: 'border-[var(--accent-border)]',
+        bg: 'bg-[var(--accent-subtle)]',
+        icon: 'clock',
+      };
     default:
-      return { color: 'text-slate-400', icon: 'check' };
+      return {
+        color: 'text-[var(--text-muted)]',
+        border: 'border-[var(--border-subtle)]',
+        bg: 'bg-black/5 dark:bg-white/5',
+        icon: 'check',
+      };
   }
 }
-

@@ -13,7 +13,10 @@ const MAX_ITERATIONS = parseInt(process.env.MAX_AGENT_ITERATIONS || '5', 10);
  */
 async function runAgentLoop(customObjective) {
   const apiKey = process.env.GEMINI_API_KEY;
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  let modelName = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+  if (modelName === 'gemini-2.5-flash' || modelName === 'gemini-3.5-flash' || modelName === 'gemini-3.6-flash') {
+    modelName = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+  }
 
   // If Gemini API Key is missing or blank, seamlessly fall back to Deterministic Safety Mode
   if (!apiKey || apiKey.trim() === '') {
@@ -138,6 +141,7 @@ async function runAgentLoop(customObjective) {
       confidence: null,
       objective,
       sourceMode: 'GEMINI_AGENT',
+      model: modelName,
       toolsUsed: [...new Set(executedTools)],
       iterations,
       validationResult: 'APPROVED (Backend Tool Validation)',
@@ -148,6 +152,12 @@ async function runAgentLoop(customObjective) {
     };
 
     gridState.addAiDecisions([decisionRecord]);
+    gridState.addLogs([{
+      id: generateId(),
+      timestamp: getTimestamp(),
+      message: `Autonomous Dispatch [Gemini]: ${finalDecisionText || 'Grid balance optimized.'}`,
+      type: 'action',
+    }]);
 
     return {
       success: true,

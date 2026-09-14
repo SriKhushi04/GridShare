@@ -1,17 +1,18 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import { GridProvider } from '../context/GridContext';
+import { Outlet, useLocation } from 'react-router-dom';
+import HeaderNav from './HeaderNav';
 
 export default function AppShell() {
+  const location = useLocation();
+
   return (
-    <GridProvider>
-      <div className="flex h-screen overflow-hidden bg-[#080c14]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col bg-[var(--bg-page)] text-[var(--text-primary)] transition-colors duration-300">
+      <HeaderNav />
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col">
+        <div key={location.pathname} className="page-transition flex-1 flex flex-col">
           <Outlet />
-        </main>
-      </div>
-    </GridProvider>
+        </div>
+      </main>
+    </div>
   );
 }

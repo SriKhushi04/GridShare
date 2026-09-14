@@ -16,9 +16,10 @@ const {
  * Priority 2: Central Battery
  * Priority 3: Main Power Grid (if ONLINE)
  */
-function allocateEnergy() {
+function allocateEnergy(options = {}) {
   const timestamp = getTimestamp();
-  const logs = [];
+  const actionLogs = [];
+  const diagnosticLogs = [];
   const transactions = [];
   const aiDecisions = [];
   const activeTransfers = [];
@@ -36,7 +37,7 @@ function allocateEnergy() {
   buildings.forEach((b) => {
     if (b.status === 'SURPLUS') {
       surplusMap[b.buildingId] = b.energyBalance;
-      logs.push({
+      diagnosticLogs.push({
         id: generateId(),
         timestamp,
         message: `${b.name} surplus identified: +${b.energyBalance} kW available`,
@@ -44,7 +45,7 @@ function allocateEnergy() {
       });
     } else if (b.status === 'DEFICIT') {
       deficitMap[b.buildingId] = Math.abs(b.energyBalance);
-      logs.push({
+      diagnosticLogs.push({
         id: generateId(),
         timestamp,
         message: `${b.name} deficit detected: −${Math.abs(b.energyBalance)} kW required`,
@@ -99,7 +100,7 @@ function allocateEnergy() {
         transactions.push(tx);
         activeTransfers.push(tx);
 
-        logs.push({
+        actionLogs.push({
           id: generateId(),
           timestamp,
           message: `P2P Transfer: ${surBuilding.name} → ${defBuilding.name} (${transferAmount} kW / ${transferEnergyKwh} kWh)`,
@@ -149,7 +150,7 @@ function allocateEnergy() {
         transactions.push(tx);
         activeTransfers.push(tx);
 
-        logs.push({
+        actionLogs.push({
           id: generateId(),
           timestamp,
           message: `Central Battery discharged ${battSupply} kWh → ${defBuilding.name}`,
@@ -199,7 +200,7 @@ function allocateEnergy() {
         transactions.push(tx);
         activeTransfers.push(tx);
 
-        logs.push({
+        actionLogs.push({
           id: generateId(),
           timestamp,
           message: `Main Grid fallback activated: ${gridSupply} kW (${gridEnergyKwh} kWh) → ${defBuilding.name}`,
@@ -219,7 +220,7 @@ function allocateEnergy() {
         });
       } else {
         // Main grid is OFFLINE! Honest handling: do NOT fulfill from grid
-        logs.push({
+        actionLogs.push({
           id: generateId(),
           timestamp,
           message: `CRITICAL: Unmet demand at ${defBuilding.name} (${remainingDeficit} kW)! Main Grid OFFLINE.`,
@@ -268,7 +269,7 @@ function allocateEnergy() {
           active: false,
         });
 
-        logs.push({
+        actionLogs.push({
           id: generateId(),
           timestamp,
           message: `Central Battery charging: +${chargeAmount} kWh from ${surBuilding.name}`,
@@ -282,9 +283,11 @@ function allocateEnergy() {
   gridState.centralBattery.currentEnergy = centralEnergy;
   gridState.mainGrid.currentImportKw = mainGridPowerImported;
   gridState.activeTransfers = activeTransfers;
-  gridState.addLogs(logs);
+  gridState.addLogs([...actionLogs, ...diagnosticLogs]);
   gridState.addTransactions(transactions);
-  gridState.addAiDecisions(aiDecisions);
+  if (options && options.recordAiDecisions) {
+    gridState.addAiDecisions(aiDecisions);
+  }
 
   return gridState.getCompleteState();
 }
