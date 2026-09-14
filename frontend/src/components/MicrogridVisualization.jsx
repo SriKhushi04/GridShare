@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getStatusColor, formatBalance } from '../utils/statusHelpers';
+import { formatBalance } from '../utils/statusHelpers';
 
 // ─── Canvas dimensions ────────────────────────────────────────────────────────
 const W = 800;

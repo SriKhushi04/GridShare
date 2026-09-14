@@ -95,7 +95,7 @@ async function executeTool(toolName, args = {}) {
         return { success: false, status: 'REJECTED', reason: 'INVALID_AMOUNT', message: 'Amount must be positive' };
       }
 
-      // Validation 2: Source building check
+      // Validation 2: Source and target building check
       const srcNode = gridState.getBuildingById(fromBuilding);
       const tgtNode = gridState.getBuildingById(toBuilding);
 
@@ -103,39 +103,37 @@ async function executeTool(toolName, args = {}) {
         return { success: false, status: 'REJECTED', reason: 'INVALID_BUILDING_ID', message: 'Invalid building ID' };
       }
 
-      // Validation 3: Physical surplus availability check
-      const availableSurplus = srcNode.solarGeneration - srcNode.consumption;
-      if (availableSurplus <= 0) {
+      // Validation 3 & 4: Create authoritative reservation against unallocated surplus (HIGH-006)
+      const resResult = gridState.createReservation({
+        sourceNode: fromBuilding,
+        targetNode: toBuilding,
+        amountKw: amountKwh, // Parameter received in kW (or legacy amountKwh)
+        type: 'P2P',
+        authorization: {
+          mode: 'AI_AGENT',
+          approved: true,
+          reason: 'Authorized via Gemini Agent tool call',
+        },
+      });
+
+      if (!resResult.success) {
         return {
           success: false,
           status: 'REJECTED',
-          reason: 'INSUFFICIENT_SOURCE_ENERGY',
-          message: `${srcNode.name} has no available surplus energy (${availableSurplus.toFixed(1)} kW)`,
+          reason: resResult.reason,
+          message: resResult.message,
         };
       }
 
-      const transferAmount = round1(Math.min(amountKwh, availableSurplus));
-      const timestamp = getTimestamp();
+      // Immediately settle reservation to produce completed transaction and active transfer
+      const [settledTx] = gridState.settleReservations();
+      const transferAmount = settledTx ? (settledTx.amountKw || settledTx.amount) : round1(amountKwh);
 
-      const tx = {
-        id: generateId(),
-        from: fromBuilding,
-        to: toBuilding,
-        fromName: srcNode.name,
-        toName: tgtNode.name,
-        amount: transferAmount,
-        type: 'P2P',
-        timestamp,
-        status: 'COMPLETED',
-        active: true,
-      };
-
-      gridState.addTransactions([tx]);
       gridState.addLogs([
         {
           id: generateId(),
-          timestamp,
-          message: `AI Agent P2P Action: ${srcNode.name} → ${tgtNode.name} (${transferAmount} kWh)`,
+          timestamp: getTimestamp(),
+          message: `AI Agent P2P Action: ${srcNode.name} → ${tgtNode.name} (${transferAmount} kW / ${settledTx?.amount || 0} kWh)`,
           type: 'success',
         },
       ]);
@@ -146,7 +144,9 @@ async function executeTool(toolName, args = {}) {
         status: 'APPROVED',
         executedAmount: transferAmount,
         requestedAmount: amountKwh,
-        transaction: tx,
+        intent: resResult.intent,
+        remainingSurplus: resResult.remainingSurplus,
+        transaction: settledTx,
       };
     }
 
@@ -176,6 +176,7 @@ async function executeTool(toolName, args = {}) {
       gridState.updateCentralBattery(-dischargeAmount);
       const timestamp = getTimestamp();
 
+      const dischargeEnergyKwh = powerToEnergyKwh(dischargeAmount, gridState.tickDurationSeconds);
       const tx = {
         id: generateId(),
         from: 'core',
@@ -183,6 +184,8 @@ async function executeTool(toolName, args = {}) {
         fromName: 'Central Battery',
         toName: tgtNode.name,
         amount: dischargeAmount,
+        amountKw: dischargeAmount,
+        energyKwh: dischargeEnergyKwh,
         type: 'CENTRAL_BATTERY',
         timestamp,
         status: 'COMPLETED',
@@ -234,6 +237,7 @@ async function executeTool(toolName, args = {}) {
       gridState.updateCentralBattery(chargeAmount);
       const timestamp = getTimestamp();
 
+      const chargeEnergyKwh = powerToEnergyKwh(chargeAmount, gridState.tickDurationSeconds);
       const tx = {
         id: generateId(),
         from: buildingId,
@@ -241,6 +245,8 @@ async function executeTool(toolName, args = {}) {
         fromName: srcNode.name,
         toName: 'Central Battery',
         amount: chargeAmount,
+        amountKw: chargeAmount,
+        energyKwh: chargeEnergyKwh,
         type: 'CHARGE',
         timestamp,
         status: 'COMPLETED',
@@ -291,6 +297,7 @@ async function executeTool(toolName, args = {}) {
       const timestamp = getTimestamp();
       gridState.mainGrid.powerImported = round1(gridState.mainGrid.powerImported + amountKwh);
 
+      const gridEnergyKwh = powerToEnergyKwh(amountKwh, gridState.tickDurationSeconds);
       const tx = {
         id: generateId(),
         from: 'grid',
@@ -298,6 +305,8 @@ async function executeTool(toolName, args = {}) {
         fromName: 'Main Power Grid',
         toName: tgtNode.name,
         amount: amountKwh,
+        amountKw: amountKwh,
+        energyKwh: gridEnergyKwh,
         type: 'MAIN_GRID',
         timestamp,
         status: 'COMPLETED',
@@ -309,7 +318,7 @@ async function executeTool(toolName, args = {}) {
         {
           id: generateId(),
           timestamp,
-          message: `AI Agent Main Grid Draw: ${amountKwh} kWh → ${tgtNode.name}`,
+          message: `AI Agent Main Grid Draw: ${amountKwh} kW (${gridEnergyKwh} kWh) → ${tgtNode.name}`,
           type: 'warning',
         },
       ]);

@@ -50,8 +50,10 @@ export function getActivityTypeColor(type) {
 export function getTransactionTypeColor(type) {
   switch (type) {
     case 'P2P': return 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+    case 'CENTRAL_BATTERY':
     case 'BATTERY': return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
     case 'CHARGE': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+    case 'MAIN_GRID':
     case 'GRID': return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
     default: return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
   }

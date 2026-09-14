@@ -3,12 +3,25 @@ import TopBar from '../components/TopBar';
 import TransactionTable from '../components/TransactionTable';
 import SimulationControls from '../components/SimulationControls';
 import { useGrid } from '../context/GridContext';
-import { ArrowLeftRight, ShieldCheck, Info } from 'lucide-react';
+import { ArrowLeftRight, ShieldCheck } from 'lucide-react';
 
 export default function Transactions() {
-  const { state } = useGrid();
-  const { transactions } = state;
+  const { state, loading } = useGrid();
 
+  if (loading && !state) {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden bg-[#080c14]">
+        <TopBar title="Transactions" subtitle="Energy Transfer Ledger" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <span className="text-xs text-slate-400 text-mono uppercase tracking-widest">
+            Loading transactions...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const transactions = state?.transactions || [];
   const p2pCount = transactions.filter((t) => t.type === 'P2P').length;
   const totalKwh = transactions.reduce((sum, t) => sum + t.amount, 0).toFixed(1);
 
@@ -52,9 +65,9 @@ export default function Transactions() {
           <span className="text-[9px] text-slate-700 uppercase tracking-widest">Transaction Types:</span>
           {[
             { type: 'P2P', desc: 'Building-to-building sharing', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
-            { type: 'BATTERY', desc: 'Central battery discharge', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
+            { type: 'CENTRAL_BATTERY', desc: 'Central battery discharge', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
             { type: 'CHARGE', desc: 'Battery charging from surplus', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-            { type: 'GRID', desc: 'Main grid fallback', color: 'text-slate-400 border-slate-500/30 bg-slate-500/10' },
+            { type: 'MAIN_GRID', desc: 'Main grid fallback', color: 'text-slate-400 border-slate-500/30 bg-slate-500/10' },
           ].map(({ type, desc, color }) => (
             <div key={type} className="flex items-center gap-2">
               <span className={`text-[9px] font-medium px-2 py-0.5 rounded border tracking-widest text-mono ${color}`}>

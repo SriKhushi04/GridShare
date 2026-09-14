@@ -31,7 +31,7 @@ async function runDeterministicFallback(customObjective) {
   let reasonText = 'Baseline generation covers consumption or central battery reserves are stable.';
 
   if (activeTx) {
-    actionType = activeTx.type === 'P2P' ? 'P2P_TRANSFER' : activeTx.type === 'BATTERY' ? 'BATTERY_DISCHARGE' : 'MAIN_GRID_SUPPLY';
+    actionType = activeTx.type === 'P2P' ? 'P2P_TRANSFER' : activeTx.type === 'CENTRAL_BATTERY' ? 'BATTERY_DISCHARGE' : 'MAIN_GRID_SUPPLY';
     fromName = activeTx.fromName;
     toName = activeTx.toName;
     amountKwh = activeTx.amount;

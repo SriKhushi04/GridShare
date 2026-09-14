@@ -104,6 +104,100 @@ async function runPhase5Tests() {
       'POST /api/agent/run (GRID_FAILURE - Main Grid Power strictly 0 kW)'
     );
 
+    // -------------------------------------------------------------
+    // STAGE 1A: HIGH-006 & HIGH-007 ACCOUNTING & RESERVATION TESTS
+    // -------------------------------------------------------------
+    console.log('\n--- Running Stage 1A Accounting & Reservation Tests ---');
+
+    // HIGH-006: 1. Baseline available surplus observation
+    const gridRes0 = await request('/grid');
+    assert(gridRes0.status === 200, 'GET /grid for Stage 1A baseline');
+    const b01Initial = gridRes0.data.buildings.find((b) => b.buildingId === 'b01');
+    assert(b01Initial && b01Initial.solarGeneration === 8.2 && b01Initial.consumption === 5.1, 'Building 01 has expected physical baseline');
+
+    // HIGH-006: 2. Internal tools check: reservation creation, capacity reduction, deterministic rejection
+    const gridState = require('./services/gridService');
+    const { executeTool } = require('./agent/agentTools');
+    gridState.reset();
+
+    const initialSurplus = gridState.getAvailableSurplus('b01'); // 3.1 kW
+    assert(initialSurplus === 3.1, 'Building 01 unallocated surplus initially 3.1 kW');
+
+    // Tool call 1: partial transfer 1.5 kW
+    const call1 = await executeTool('request_p2p_transfer', { fromBuilding: 'b01', toBuilding: 'b02', amountKwh: 1.5 });
+    assert(call1.success === true && call1.status === 'APPROVED', 'Tool call 1: approved for 1.5 kW');
+    const surplusAfter1 = gridState.getAvailableSurplus('b01');
+    assert(surplusAfter1 === 1.6, 'Available donor surplus decreases from 3.1 to 1.6 kW');
+
+    // Check physical telemetry NOT mutated
+    const b01Physical = gridState.getBuildingById('b01');
+    assert(b01Physical.solarGeneration === 8.2 && b01Physical.consumption === 5.1, 'Physical telemetry unchanged by reservation');
+
+    // Tool call 2: remaining 1.6 kW
+    const call2 = await executeTool('request_p2p_transfer', { fromBuilding: 'b01', toBuilding: 'b02', amountKwh: 1.6 });
+    assert(call2.success === true && call2.status === 'APPROVED', 'Tool call 2: approved for remaining 1.6 kW');
+    assert(gridState.getAvailableSurplus('b01') === 0, 'Available surplus correctly drops to 0.0 kW');
+
+    // Tool call 3: excess transfer must be rejected deterministically
+    const call3 = await executeTool('request_p2p_transfer', { fromBuilding: 'b01', toBuilding: 'b04', amountKwh: 1.0 });
+    assert(
+      call3.success === false && call3.status === 'REJECTED' && call3.reason === 'INSUFFICIENT_SOURCE_ENERGY',
+      'Tool call 3: excess transfer rejected with INSUFFICIENT_SOURCE_ENERGY'
+    );
+
+    // Repeated call cannot double-spend
+    const call4 = await executeTool('request_p2p_transfer', { fromBuilding: 'b01', toBuilding: 'b05', amountKwh: 0.1 });
+    assert(call4.success === false && call4.status === 'REJECTED', 'Repeated run cannot double-spend exhausted surplus');
+
+    // Advancing tick resets reservation pool and uses fresh telemetry
+    const simService = require('./services/simulationService');
+    simService.processTick();
+    assert(gridState.getAvailableSurplus('b01') > 0, 'processTick() closes previous tick reservations and resets unreserved pool');
+
+    // HIGH-007: Power vs Energy semantics
+    await request('/simulation/reset', { method: 'POST' });
+    const freshGrid = (await request('/grid')).data;
+    assert(freshGrid.tickDurationSeconds === 5, 'tickDurationSeconds is explicitly modeled as 5s');
+    assert(freshGrid.mainGrid.currentImportKw === 0, 'currentImportKw initially 0');
+    assert(freshGrid.mainGrid.cumulativeImportKwh === 0, 'cumulativeImportKwh initially 0');
+    assert(freshGrid.mainGrid.powerImported === 0, 'Backward compatibility alias powerImported === 0');
+    assert(freshGrid.mainGrid.power === 0, 'Backward compatibility alias power === 0');
+
+    // To force Main Grid import: Chain LOW_BATTERY then LOW_SOLAR via HTTP
+    await request('/simulation/scenario', {
+      method: 'POST',
+      body: JSON.stringify({ scenario: 'LOW_BATTERY' }),
+    });
+    await request('/simulation/scenario', {
+      method: 'POST',
+      body: JSON.stringify({ scenario: 'LOW_SOLAR' }),
+    });
+
+    const tick1 = (await request('/simulation/tick', { method: 'POST' })).data.gridState;
+    const kw1 = tick1.mainGrid.currentImportKw;
+    const kwh1 = tick1.mainGrid.cumulativeImportKwh;
+    assert(kw1 > 0, 'Depleted reserves cause currentImportKw > 0', `${kw1} kW`);
+    assert(kwh1 > 0, 'Grid draw tick integrates energy into cumulativeImportKwh', `${kwh1} kWh`);
+    assert(tick1.mainGrid.powerImported === kw1, 'powerImported dynamically mirrors currentImportKw');
+    assert(tick1.mainGrid.power === kw1, 'power dynamically mirrors currentImportKw');
+
+    // Second tick accumulates monotonically
+    const tick2 = (await request('/simulation/tick', { method: 'POST' })).data.gridState;
+    assert(tick2.mainGrid.cumulativeImportKwh >= kwh1, 'cumulativeImportKwh increases monotonically across importing ticks');
+
+    // GRID_FAILURE invariant: power = 0, energy freezes
+    await request('/simulation/scenario', {
+      method: 'POST',
+      body: JSON.stringify({ scenario: 'GRID_FAILURE' }),
+    });
+    const gfTick = (await request('/simulation/tick', { method: 'POST' })).data.gridState;
+    assert(gfTick.mainGrid.currentImportKw === 0, 'GRID_FAILURE invariant: currentImportKw strictly 0 kW');
+    assert(gfTick.mainGrid.cumulativeImportKwh === tick2.mainGrid.cumulativeImportKwh, 'GRID_FAILURE invariant: cumulativeImportKwh does not increase during outage');
+
+    // Reset invariant: resets cumulative to 0
+    const resetState = (await request('/simulation/reset', { method: 'POST' })).data.gridState;
+    assert(resetState.mainGrid.cumulativeImportKwh === 0 && resetState.mainGrid.currentImportKw === 0, 'RESET invariant: cumulativeImportKwh and currentImportKw reset to 0');
+
     // Reset to Baseline
     await request('/simulation/reset', { method: 'POST' });
 
@@ -113,7 +207,7 @@ async function runPhase5Tests() {
   }
 
   console.log('\n==================================================');
-  console.log(`  PHASE 5 AGENT RESULTS: ${passed} PASSED, ${failed} FAILED`);
+  console.log(`  PHASE 5 AGENT & STAGE 1A RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('==================================================\n');
 
   if (failed > 0) {

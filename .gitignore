@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Private local working-context documentation
+CURRENT_STATE.md
+DECISIONS.md
+AUDIT_REPORT.md
+ARCHITECTURE_DECISIONS.md
+PROJECT_PHASES.md

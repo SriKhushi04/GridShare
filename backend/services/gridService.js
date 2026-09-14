@@ -16,6 +16,11 @@ const {
   MAX_LOG_ENTRIES,
   MAX_TRANSACTION_HISTORY,
   MAX_DECISION_HISTORY,
+  TICK_DURATION_SECONDS,
+  powerToEnergyKwh,
+  round2,
+  getTimestamp,
+  generateId,
 } = require('../utils/gridHelpers');
 
 // In-Memory Central Grid State
@@ -25,20 +30,142 @@ class GridState {
   }
 
   reset() {
+    this.tickDurationSeconds = TICK_DURATION_SECONDS;
+    this.tickId = 0;
     this.buildings = INITIAL_BUILDINGS.map((b) => ({ ...b }));
     this.centralBattery = { ...INITIAL_CENTRAL_BATTERY };
-    this.mainGrid = { ...INITIAL_MAIN_GRID };
+    this.mainGrid = {
+      status: INITIAL_MAIN_GRID.status || 'ONLINE',
+      currentImportKw: 0,
+      cumulativeImportKwh: 0,
+      powerExported: 0,
+      get powerImported() {
+        return this.currentImportKw;
+      },
+      set powerImported(val) {
+        this.currentImportKw = round1(val);
+      },
+      get power() {
+        return this.currentImportKw;
+      },
+      set power(val) {
+        this.currentImportKw = round1(val);
+      },
+      get online() {
+        return this.status === 'ONLINE';
+      },
+    };
     this.activeTransfers = INITIAL_TRANSACTIONS.filter((t) => t.active);
     this.completedTransfers = INITIAL_TRANSACTIONS.filter((t) => !t.active);
     this.transactions = [...INITIAL_TRANSACTIONS];
     this.aiDecisions = [...INITIAL_AI_DECISIONS];
     this.logs = [...INITIAL_ACTIVITY_LOG];
     this.currentScenario = 'NORMAL';
+
+    // Authoritative Reservation Ledger (HIGH-006)
+    // Structure per intent: { transferId, tickId, timestamp, sourceNode, targetNode, amountKwh, amountKw, type, authorization, status }
+    this.activeReservations = [];
+
     this.updateCalculatedMetrics();
   }
 
+  // Get unreserved available surplus for a node (HIGH-006)
+  getAvailableSurplus(buildingId) {
+    const b = this.getBuildingById(buildingId);
+    if (!b) return 0;
+    const baseSurplus = Math.max(0, b.solarGeneration - b.consumption);
+    const reservedKw = this.activeReservations
+      .filter((r) => r.sourceNode === buildingId && (r.status === 'RESERVED' || r.status === 'SETTLED'))
+      .reduce((sum, r) => sum + (r.amountKw !== undefined ? r.amountKw : r.amountKwh), 0);
+    return round1(Math.max(0, baseSurplus - reservedKw));
+  }
+
+  // Create an energy transfer reservation (HIGH-006)
+  createReservation({ sourceNode, targetNode, amountKw, type = 'P2P', authorization = {} }) {
+    const avail = this.getAvailableSurplus(sourceNode);
+    if (amountKw <= 0 || isNaN(amountKw)) {
+      return { success: false, reason: 'INVALID_AMOUNT', message: 'Amount must be positive' };
+    }
+    if (amountKw > avail) {
+      return {
+        success: false,
+        reason: 'INSUFFICIENT_SOURCE_ENERGY',
+        message: `Available surplus (${avail.toFixed(1)} kW) is less than requested (${amountKw.toFixed(1)} kW)`,
+      };
+    }
+
+    const transferAmountKw = round1(amountKw);
+    const amountKwh = powerToEnergyKwh(transferAmountKw, this.tickDurationSeconds);
+    const timestamp = getTimestamp();
+    const transferId = generateId();
+
+    const intent = {
+      transferId,
+      tickId: this.tickId,
+      timestamp,
+      sourceNode,
+      targetNode,
+      amountKw: transferAmountKw,
+      amountKwh,
+      type,
+      authorization,
+      status: 'RESERVED',
+    };
+
+    this.activeReservations.push(intent);
+    return { success: true, intent, remainingSurplus: this.getAvailableSurplus(sourceNode) };
+  }
+
+  // Settle reservations into completed transactions
+  settleReservations() {
+    const settledTransactions = [];
+    for (const res of this.activeReservations) {
+      if (res.status === 'RESERVED') {
+        res.status = 'SETTLED';
+        const srcBuilding = this.getBuildingById(res.sourceNode);
+        const tgtBuilding = this.getBuildingById(res.targetNode);
+
+        const tx = {
+          id: res.transferId,
+          from: res.sourceNode,
+          to: res.targetNode,
+          fromName: srcBuilding ? srcBuilding.name : res.sourceNode,
+          toName: tgtBuilding ? tgtBuilding.name : res.targetNode,
+          amount: res.amountKwh,
+          amountKw: res.amountKw,
+          type: res.type,
+          timestamp: res.timestamp,
+          status: 'COMPLETED',
+          active: true,
+          transferIntentId: res.transferId,
+        };
+
+        settledTransactions.push(tx);
+      }
+    }
+
+    if (settledTransactions.length > 0) {
+      this.addTransactions(settledTransactions);
+      this.activeTransfers = [...settledTransactions, ...this.activeTransfers];
+    }
+    return settledTransactions;
+  }
+
+  // Clear active reservations at close of tick (HIGH-006 lifecycle: CLOSE TICK)
+  clearActiveReservations() {
+    this.activeReservations = [];
+  }
+
+  // Accumulate energy from current power and tick duration (HIGH-007)
+  integrateTickEnergy() {
+    if (this.mainGrid.status === 'ONLINE' && this.mainGrid.currentImportKw > 0) {
+      const importedEnergyKwh = (this.mainGrid.currentImportKw * this.tickDurationSeconds) / 3600;
+      this.mainGrid.cumulativeImportKwh = round2(this.mainGrid.cumulativeImportKwh + importedEnergyKwh);
+    }
+  }
+
   updateCalculatedMetrics() {
-    // Recalculate energy balance & status for each building
+    // Recalculate energy balance & status for each building (physical telemetry unaltered)
     this.buildings = this.buildings.map((b) => {
       const energyBalance = calculateEnergyBalance(b.solarGeneration, b.consumption);
       const status = calculateBuildingStatus(energyBalance);
@@ -57,7 +184,7 @@ class GridState {
     // Grid Status
     const hasUnmetDemand = this.logs.some((l) => l.type === 'alert' && l.message.includes('CRITICAL'));
     this.gridStatus = calculateGridStatus(
-      this.mainGrid.powerImported,
+      this.mainGrid.currentImportKw,
       this.centralBattery.percentage,
       this.mainGrid.status === 'ONLINE',
       hasUnmetDemand
@@ -69,9 +196,9 @@ class GridState {
     const p2pTotal = round1(
       this.activeTransfers
         .filter((t) => t.type === 'P2P')
-        .reduce((sum, t) => sum + t.amount, 0)
+        .reduce((sum, t) => sum + (t.amountKw !== undefined ? t.amountKw : t.amount), 0)
     );
-    const mainGridDep = totalCons > 0 ? round1((this.mainGrid.powerImported / totalCons) * 100) : 0;
+    const mainGridDep = totalCons > 0 ? round1((this.mainGrid.currentImportKw / totalCons) * 100) : 0;
 
     this.summaryStats = {
       totalGeneration: totalGen,
@@ -85,21 +212,24 @@ class GridState {
   getCompleteState() {
     this.updateCalculatedMetrics();
     return {
+      tickId: this.tickId,
+      tickDurationSeconds: this.tickDurationSeconds,
       buildings: this.buildings,
       centralBattery: {
         capacity: this.centralBattery.capacity,
         currentEnergy: this.centralBattery.currentEnergy,
         percentage: this.centralBattery.percentage,
-        // Frontend support compatibility
         batteryLevel: this.centralBattery.percentage,
       },
       mainGrid: {
         status: this.mainGrid.status,
-        powerImported: this.mainGrid.powerImported,
+        currentImportKw: this.mainGrid.currentImportKw,
+        cumulativeImportKwh: this.mainGrid.cumulativeImportKwh,
+        powerImported: this.mainGrid.currentImportKw,
         powerExported: this.mainGrid.powerExported,
         // Frontend support compatibility
         connection: this.mainGrid.status,
-        power: this.mainGrid.powerImported,
+        power: this.mainGrid.currentImportKw,
         online: this.mainGrid.status === 'ONLINE',
       },
       gridStatus: this.gridStatus,
@@ -111,6 +241,7 @@ class GridState {
         mainGridDependency: this.summaryStats.mainGridDependency,
       },
       activeTransfers: this.activeTransfers,
+      activeReservations: this.activeReservations,
       transactions: this.transactions,
       aiDecisions: this.aiDecisions,
       logs: this.logs,
@@ -151,7 +282,7 @@ class GridState {
     if (status === 'ONLINE' || status === 'OFFLINE') {
       this.mainGrid.status = status;
       if (status === 'OFFLINE') {
-        this.mainGrid.powerImported = 0;
+        this.mainGrid.currentImportKw = 0;
       }
       this.updateCalculatedMetrics();
     }

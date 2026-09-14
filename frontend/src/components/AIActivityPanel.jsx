@@ -1,5 +1,5 @@
 import { getActivityTypeColor } from '../utils/statusHelpers';
-import { Activity, Brain } from 'lucide-react';
+import { Brain } from 'lucide-react';
 
 export default function AIActivityPanel({ events, aiDecisions = [], agentStatus = {} }) {
   return (

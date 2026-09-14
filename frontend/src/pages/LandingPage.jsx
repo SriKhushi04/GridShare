@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, ArrowRight, Sun, Battery, ArrowLeftRight, Brain, Shield, Activity } from 'lucide-react';
+import { Zap, ArrowRight, Battery, ArrowLeftRight, Brain, Shield, Activity } from 'lucide-react';
 
 const features = [
   {

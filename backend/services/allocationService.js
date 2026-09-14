@@ -6,6 +6,8 @@ const {
   getTimestamp,
   generateId,
   BATTERY_CAPACITY,
+  powerToEnergyKwh,
+  TICK_DURATION_SECONDS,
 } = require('../utils/gridHelpers');
 
 /**
@@ -20,6 +22,9 @@ function allocateEnergy() {
   const transactions = [];
   const aiDecisions = [];
   const activeTransfers = [];
+
+  // Lifecycle: Settle any pending transfer reservations created by agent or engine
+  gridState.settleReservations();
 
   // Update building balances & statuses first
   gridState.updateCalculatedMetrics();
@@ -75,6 +80,7 @@ function allocateEnergy() {
         deficitMap[defId] = round1(deficitMap[defId] - transferAmount);
         remainingDeficit = round1(remainingDeficit - transferAmount);
 
+        const transferEnergyKwh = powerToEnergyKwh(transferAmount, gridState.tickDurationSeconds);
         const tx = {
           id: generateId(),
           from: surId,
@@ -82,6 +88,8 @@ function allocateEnergy() {
           fromName: surBuilding.name,
           toName: defBuilding.name,
           amount: transferAmount,
+          amountKw: transferAmount,
+          energyKwh: transferEnergyKwh,
           type: 'P2P',
           timestamp,
           status: 'COMPLETED',
@@ -94,15 +102,17 @@ function allocateEnergy() {
         logs.push({
           id: generateId(),
           timestamp,
-          message: `P2P Transfer: ${surBuilding.name} → ${defBuilding.name} (${transferAmount} kWh)`,
+          message: `P2P Transfer: ${surBuilding.name} → ${defBuilding.name} (${transferAmount} kW / ${transferEnergyKwh} kWh)`,
           type: 'success',
         });
 
         aiDecisions.push({
           id: generateId(),
           situation: `${defBuilding.name} has a ${defBuilding.energyBalance.toFixed(1)} kW deficit.`,
-          decision: `Transfer ${transferAmount} kWh from ${surBuilding.name} to ${defBuilding.name} via P2P.`,
+          decision: `Transfer ${transferAmount} kW (${transferEnergyKwh} kWh) from ${surBuilding.name} to ${defBuilding.name} via P2P.`,
           amount: transferAmount,
+          amountKw: transferAmount,
+          energyKwh: transferEnergyKwh,
           reason: 'P2P energy sharing takes priority over central battery discharge to preserve grid reserves.',
           result: 'COMPLETED',
           timestamp,
@@ -120,6 +130,7 @@ function allocateEnergy() {
         deficitMap[defId] = round1(deficitMap[defId] - battSupply);
         remainingDeficit = round1(remainingDeficit - battSupply);
 
+        const battEnergyKwh = powerToEnergyKwh(battSupply, gridState.tickDurationSeconds);
         const tx = {
           id: generateId(),
           from: 'core',
@@ -127,6 +138,8 @@ function allocateEnergy() {
           fromName: 'Central Battery',
           toName: defBuilding.name,
           amount: battSupply,
+          amountKw: battSupply,
+          energyKwh: battEnergyKwh,
           type: 'CENTRAL_BATTERY',
           timestamp,
           status: 'COMPLETED',
@@ -148,6 +161,8 @@ function allocateEnergy() {
           situation: `Peer surplus exhausted. ${defBuilding.name} still has a ${remainingDeficit.toFixed(1)} kW deficit.`,
           decision: `Dispatch ${battSupply} kWh from Central Battery to ${defBuilding.name}.`,
           amount: battSupply,
+          amountKw: battSupply,
+          energyKwh: battEnergyKwh,
           reason: 'Local P2P capacity exhausted. Discharging central reserves before requesting main grid power.',
           result: 'COMPLETED',
           timestamp,
@@ -165,6 +180,7 @@ function allocateEnergy() {
         deficitMap[defId] = 0;
         remainingDeficit = 0;
 
+        const gridEnergyKwh = powerToEnergyKwh(gridSupply, gridState.tickDurationSeconds);
         const tx = {
           id: generateId(),
           from: 'grid',
@@ -172,6 +188,8 @@ function allocateEnergy() {
           fromName: 'Main Power Grid',
           toName: defBuilding.name,
           amount: gridSupply,
+          amountKw: gridSupply,
+          energyKwh: gridEnergyKwh,
           type: 'MAIN_GRID',
           timestamp,
           status: 'COMPLETED',
@@ -184,15 +202,17 @@ function allocateEnergy() {
         logs.push({
           id: generateId(),
           timestamp,
-          message: `Main Grid fallback activated: ${gridSupply} kWh → ${defBuilding.name}`,
+          message: `Main Grid fallback activated: ${gridSupply} kW (${gridEnergyKwh} kWh) → ${defBuilding.name}`,
           type: 'warning',
         });
 
         aiDecisions.push({
           id: generateId(),
-          situation: `P2P and Central Battery depleted. ${defBuilding.name} requires ${gridSupply} kWh.`,
-          decision: `Draw ${gridSupply} kWh from Main Power Grid.`,
+          situation: `P2P and Central Battery depleted. ${defBuilding.name} requires ${gridSupply} kW.`,
+          decision: `Draw ${gridSupply} kW (${gridEnergyKwh} kWh) from Main Power Grid.`,
           amount: gridSupply,
+          amountKw: gridSupply,
+          energyKwh: gridEnergyKwh,
           reason: 'Last resort fallback activated to prevent power outage at node.',
           result: 'COMPLETED',
           timestamp,
@@ -202,15 +222,17 @@ function allocateEnergy() {
         logs.push({
           id: generateId(),
           timestamp,
-          message: `CRITICAL: Unmet demand at ${defBuilding.name} (${remainingDeficit} kWh)! Main Grid OFFLINE.`,
+          message: `CRITICAL: Unmet demand at ${defBuilding.name} (${remainingDeficit} kW)! Main Grid OFFLINE.`,
           type: 'alert',
         });
 
         aiDecisions.push({
           id: generateId(),
-          situation: `${defBuilding.name} deficit (${remainingDeficit} kWh) unfulfilled.`,
+          situation: `${defBuilding.name} deficit (${remainingDeficit} kW) unfulfilled.`,
           decision: 'Main grid unavailable. Emergency load-shedding recommended.',
           amount: 0,
+          amountKw: 0,
+          energyKwh: 0,
           reason: 'Main Power Grid is OFFLINE and microgrid reserves are completely exhausted.',
           result: 'FAILED',
           timestamp,
@@ -230,6 +252,7 @@ function allocateEnergy() {
         centralEnergy = round1(centralEnergy + chargeAmount);
         const surBuilding = buildings.find((b) => b.buildingId === surId);
 
+        const chargeEnergyKwh = powerToEnergyKwh(chargeAmount, gridState.tickDurationSeconds);
         transactions.push({
           id: generateId(),
           from: surId,
@@ -237,6 +260,8 @@ function allocateEnergy() {
           fromName: surBuilding.name,
           toName: 'Central Battery',
           amount: chargeAmount,
+          amountKw: chargeAmount,
+          energyKwh: chargeEnergyKwh,
           type: 'CHARGE',
           timestamp,
           status: 'COMPLETED',
@@ -253,9 +278,9 @@ function allocateEnergy() {
     }
   });
 
-  // Apply state changes to central state
+  // Apply state changes to central state (HIGH-007: instantaneous rate)
   gridState.centralBattery.currentEnergy = centralEnergy;
-  gridState.mainGrid.powerImported = mainGridPowerImported;
+  gridState.mainGrid.currentImportKw = mainGridPowerImported;
   gridState.activeTransfers = activeTransfers;
   gridState.addLogs(logs);
   gridState.addTransactions(transactions);

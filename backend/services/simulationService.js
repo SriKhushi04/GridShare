@@ -70,7 +70,11 @@ function applyScenario(scenarioKey) {
 }
 
 function processTick() {
-  // Apply realistic gradual noise to building values
+  // Step 1: Close previous tick reservations and advance tick counter
+  gridState.clearActiveReservations();
+  gridState.tickId++;
+
+  // Step 2: Apply realistic gradual noise to building values (physical telemetry unchanged by transfers)
   gridState.buildings.forEach((b) => {
     const solarNoise = (Math.random() - 0.5) * 0.4;
     const loadNoise = (Math.random() - 0.5) * 0.4;
@@ -86,8 +90,13 @@ function processTick() {
     b.batteryLevel = clamp(b.batteryLevel + battDelta, 5, 100);
   });
 
-  // Re-run allocation engine on tick
-  return allocateEnergy();
+  // Step 3: Re-run allocation engine on tick
+  const state = allocateEnergy();
+
+  // Step 4: Integrate tick energy for cumulative counters (HIGH-007)
+  gridState.integrateTickEnergy();
+
+  return gridState.getCompleteState();
 }
 
 function resetSimulation() {

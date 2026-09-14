@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import TopBar from '../components/TopBar';
 import AIDecisionCard from '../components/AIDecisionCard';
 import SimulationControls from '../components/SimulationControls';

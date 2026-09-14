@@ -43,7 +43,15 @@ function calculateGridStatus(mainGridPower, centralBatteryPct, isMainGridOnline,
   return 'STABLE';
 }
 
+const TICK_DURATION_SECONDS = 5;
+
+function powerToEnergyKwh(powerKw, durationSeconds = TICK_DURATION_SECONDS) {
+  return round2((powerKw * durationSeconds) / 3600);
+}
+
 module.exports = {
+  TICK_DURATION_SECONDS,
+  powerToEnergyKwh,
   SURPLUS_THRESHOLD,
   BATTERY_CAPACITY,
   MAX_LOG_ENTRIES,

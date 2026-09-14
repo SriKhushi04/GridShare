@@ -31,7 +31,7 @@ export function GridProvider({ children }) {
     refreshGridState(true);
   }, [refreshGridState]);
 
-  // Simulation tick loop (every 3 seconds) — triggers backend tick unless paused
+  // Simulation tick loop (every 5 seconds) — triggers backend tick unless paused
   useEffect(() => {
     if (isPaused || error) return;
 

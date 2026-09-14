@@ -126,7 +126,7 @@ async function runAgentLoop(customObjective) {
       id: generateId(),
       timestamp: getTimestamp(),
       status: 'EXECUTED',
-      action: activeTx ? (activeTx.type === 'P2P' ? 'P2P_TRANSFER' : activeTx.type === 'BATTERY' ? 'BATTERY_DISCHARGE' : 'MAIN_GRID_SUPPLY') : 'NO_ACTION',
+      action: activeTx ? (activeTx.type === 'P2P' ? 'P2P_TRANSFER' : activeTx.type === 'CENTRAL_BATTERY' ? 'BATTERY_DISCHARGE' : 'MAIN_GRID_SUPPLY') : 'NO_ACTION',
       from: activeTx ? activeTx.fromName : 'Grid Core',
       to: activeTx ? activeTx.toName : 'Microgrid',
       amountKwh: activeTx ? activeTx.amount : 0,
